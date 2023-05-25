@@ -18,9 +18,17 @@
 
 */
 
+/* Defines */
+typedef struct listen_s {
+    const char *str;
+    struct addrinfo *ai;
+    struct listen_s *prev;
+    struct listen_s *next;
+} listen_t;
+
 /* Config */
 extern const char *webroot;
-
+extern listen_t *listen_list;
 
 void config_parse(const char *config);
 

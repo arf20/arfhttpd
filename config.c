@@ -24,11 +24,13 @@
 #include <string.h>
 #include <ctype.h>
 
+#include "config.h"
 
 /* Config */
 const char *webroot = NULL;
+listen_t *listen_list = NULL;
 
-
+/* str utils */
 int
 isnotspace(char c) {
     int t = (c != ' ') && (c != '\t');
@@ -59,8 +61,18 @@ stralloccpy(const char *start, size_t length) {
     strncpy(str, start, length);
 }
 
+/* listen list */
+listen_t *
+listen_list_new(listen_t *prev) {
+    listen_t *list = malloc(sizeof(listen_t));
+    list->prev = prev;
+    list->next = NULL;
+}
+
 void
 config_parse(const char *config) {
+    listen_t *listen_list_current = NULL, *listen_list_prev = NULL;
+
     const char *key, *value, *value_end;
     size_t value_length;
     while (*config) {
@@ -71,6 +83,12 @@ config_parse(const char *config) {
 
         if (substrchk(key, "webroot ")) {
             webroot = stralloccpy(value, value_length);
+        } else if (substrchk(key, "listen ")) {
+            listen_list_current = listen_list_new(listen_list_prev);
+            if (!listen_list) listen_list = listen_list_current;
+            if (listen_list_prev) listen_list_prev->next = listen_list_current;
+            listen_list_current->str = stralloccpy(value, value_length);
+            listen_list_prev = listen_list_current;
         }
 
         config = value_end + 1;

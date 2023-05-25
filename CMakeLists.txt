@@ -8,6 +8,7 @@ find_package(Threads REQUIRED)
 file (GLOB SRC
     "main.c"
     "config.c"
+    "socket.c"
 )
 
 add_executable(arfhttpd ${SRC})

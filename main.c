@@ -55,6 +55,12 @@ main(int argc, char **argv) {
 
     printf("webroot %s\n", webroot);
 
+    listen_t *listen_list_current = listen_list;
+    while (listen_list_current) {
+        printf("listen %s\n", listen_list_current->str);
+        listen_list_current = listen_list_current->next;
+    }
+
     return 0;
 }
 
