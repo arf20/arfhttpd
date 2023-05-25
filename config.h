@@ -16,45 +16,11 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-    httpd.c: Program entry point
-
 */
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <errno.h>
-
-#include "config.h"
-
-int
-file_read(const char *path, char **buff) {
-    FILE *f = fopen(path, "r");
-    if (f == NULL) return -1;
-    fseek(f, 0L, SEEK_END);
-    size_t s = ftell(f);
-    fseek(f, 0L, SEEK_SET);
-    *buff = malloc(s);
-    fread(*buff, 1, s, f);
-    return s;
-}
+/* Config */
+extern const char *webroot;
 
 
-
-int
-main(int argc, char **argv) {
-    printf("arfhttpd GPLv3+\n");
-
-    char *config = NULL;
-    if (file_read("../arfhttpd.conf", &config) < 0) {
-        printf("Error reading config file: %s\n", strerror(errno));
-        exit(1);
-    }
-
-    config_parse(config);
-
-    printf("webroot %s\n", webroot);
-
-    return 0;
-}
+void config_parse(const char *config);
 
