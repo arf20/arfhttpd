@@ -26,6 +26,7 @@
 #include <errno.h>
 
 #include "config.h"
+#include "socket.h"
 
 int
 file_read(const char *path, char **buff) {
@@ -55,11 +56,9 @@ main(int argc, char **argv) {
 
     printf("webroot %s\n", webroot);
 
-    listen_t *listen_list_current = listen_list;
-    while (listen_list_current) {
-        printf("listen %s\n", listen_list_current->str);
-        listen_list_current = listen_list_current->next;
-    }
+    server_start(listen_list);
+
+
 
     return 0;
 }

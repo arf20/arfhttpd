@@ -18,21 +18,11 @@
 
 */
 
-#ifndef _CONFIG_H
-#define _CONFIG_H
+#ifndef _SOCKET_H
+#define _SOCKET_H
 
-/* Defines */
-typedef struct string_node_s {
-    const char *str;
-    struct string_node_s *prev;
-    struct string_node_s *next;
-} string_node_t;
+#include "config.h"
 
-/* Config */
-extern const char *webroot;
-extern string_node_t *listen_list;
-
-void config_parse(const char *config);
+int server_start(string_node_t *listen_list);
 
 #endif
-

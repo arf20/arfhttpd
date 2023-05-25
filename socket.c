@@ -21,6 +21,7 @@
 */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <errno.h>
 #include <unistd.h>
@@ -28,6 +29,10 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <netinet/tcp.h>
+
+#include "config.h"
+
+#include "socket.h"
 
 size_t /* from BSD */
 strlcat(char *restrict dst, const char *restrict src, size_t dstsize) {
@@ -73,7 +78,7 @@ host_resolve(const char *host, struct addrinfo **addrs) {
 }
 
 int
-ai_addr_str_get(const struct addrinfo *addr, char *str, size_t strlen,
+ai_addr_str(const struct addrinfo *addr, char *str, size_t strlen,
     int flags) 
 {
     void *ptr;
@@ -127,4 +132,58 @@ socket_listen(struct addrinfo *addr, unsigned short port) {
     }
 
     return fd;
+}
+
+void
+strsub(char *dest, size_t destsize, const char *src, size_t n) {
+    int i = 0;
+    for (i = 0; i < n && i < destsize && src[i]; i++)
+        dest[i] = src[i];
+    dest[i] = '\0';
+}
+
+int
+server_start(string_node_t *listen_list) {
+    string_node_t *listen_list_current = listen_list;
+    char addrstr[128];
+    char portstr[8];
+    struct addrinfo *ai;
+    int port = 0;
+
+    while (listen_list_current) {
+        char *colon = strchr(listen_list_current->str, '/');
+        if (colon) {
+            /* get address */
+            strsub(addrstr, 128, listen_list_current->str,
+                colon - listen_list_current->str);
+            /* get port */
+            strsub(portstr, 8, colon + 1, 8);
+            port = atoi(portstr);
+
+            if (host_resolve(addrstr, &ai) < 0) {
+                printf("Error resolving listen address %s: %s\n",
+                    addrstr, strerror(errno));
+            }
+
+            ai_addr_str(ai, addrstr, 256, 1);
+
+            printf("listening %s:%d\n", addrstr, port);
+            socket_listen(ai, port);
+        } else { /* assume port */
+            port = atoi(listen_list_current->str);
+
+            host_resolve("0.0.0.0", &ai);
+            ai_addr_str(ai, addrstr, 256, 1);
+            printf("listening %s:%d\n", addrstr, port);
+            socket_listen(ai, port);
+
+            host_resolve("::", &ai);
+            ai_addr_str(ai, addrstr, 256, 1);
+            printf("listening %s:%d\n", addrstr, port);
+            socket_listen(ai, port);
+        }
+        
+
+        listen_list_current = listen_list_current->next;
+    }
 }
