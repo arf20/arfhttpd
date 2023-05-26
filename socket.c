@@ -24,15 +24,22 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+
 #include <unistd.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <netinet/tcp.h>
 
+#include <pthread.h>
+
 #include "config.h"
 
 #include "socket.h"
+
+/* Vars */
+fd_thread_node_t *listen_socket_list = NULL;
+
 
 size_t /* from BSD */
 strlcat(char *restrict dst, const char *restrict src, size_t dstsize) {
@@ -62,6 +69,15 @@ strlcat(char *restrict dst, const char *restrict src, size_t dstsize) {
 
     return d_len + s_len;
 }
+
+void
+strsub(char *dest, size_t destsize, const char *src, size_t n) {
+    int i = 0;
+    for (i = 0; i < n && i < destsize && src[i]; i++)
+        dest[i] = src[i];
+    dest[i] = '\0';
+}
+
 
 
 int
@@ -98,6 +114,20 @@ ai_addr_str(const struct addrinfo *addr, char *str, size_t strlen,
     return r;
 }
 
+int
+sa_addr_str(const struct sockaddr *addr, char *str, size_t strlen) {
+    void *ptr;
+    if (addr->sa_family == AF_INET)
+        ptr = &((struct sockaddr_in*)addr)->sin_addr;
+    else if (addr->sa_family == AF_INET6)
+        ptr = &((struct sockaddr_in6*)addr)->sin6_addr;
+    else return -1;
+    
+    int r = (inet_ntop(addr->sa_family, ptr, str, strlen) != NULL)
+        ? 0 : -1;
+
+    return r;
+}
 
 int
 socket_listen(struct addrinfo *addr, unsigned short port) {
@@ -134,12 +164,46 @@ socket_listen(struct addrinfo *addr, unsigned short port) {
     return fd;
 }
 
+void *
+accept_loop(void *ptr) {
+    int lfd = *(int*)ptr;
+    int cfd = -1;
+    struct sockaddr sa;
+    socklen_t salen;
+    char addrstr[128];
+
+    while (1) {
+        cfd = accept(lfd, &sa, &salen);
+        if (cfd < 0) {
+            printf("Error accepting client: %s\n", strerror(errno));
+            return NULL;
+        }
+
+        sa_addr_str(&sa, addrstr, 128);
+        printf("Accepted client %s\n", addrstr);
+    }
+}
+
 void
-strsub(char *dest, size_t destsize, const char *src, size_t n) {
-    int i = 0;
-    for (i = 0; i < n && i < destsize && src[i]; i++)
-        dest[i] = src[i];
-    dest[i] = '\0';
+socket_listen_accept(struct addrinfo *ai, unsigned short port) {
+    /* listen */
+    int lfd = socket_listen(ai, port);
+    if (lfd < 0) return;
+
+    /* run accept thread */
+    pthread_t accept_thread;
+    pthread_create(&accept_thread, NULL, accept_loop, &lfd);
+    /*pthread_detach(accept_thread);*/
+
+    /* push element */
+    static fd_thread_node_t *listen_socket_list_prev;
+    fd_thread_node_t *listen_socket_list_current =
+        int_list_new(listen_socket_list_prev);
+    if (!listen_socket_list) listen_socket_list = listen_socket_list_current;
+    if (listen_socket_list_prev)
+        listen_socket_list_prev->next = listen_socket_list_current;
+    listen_socket_list_current->v = lfd;
+    listen_socket_list_current->thread = accept_thread;
 }
 
 int
@@ -168,19 +232,21 @@ server_start(string_node_t *listen_list) {
             ai_addr_str(ai, addrstr, 256, 1);
 
             printf("listening %s:%d\n", addrstr, port);
-            socket_listen(ai, port);
+            socket_listen_accept(ai, port);
         } else { /* assume port */
             port = atoi(listen_list_current->str);
+
+            if (port == 0) printf("Error invalid port or wrong separator (/)\n");
 
             host_resolve("0.0.0.0", &ai);
             ai_addr_str(ai, addrstr, 256, 1);
             printf("listening %s:%d\n", addrstr, port);
-            socket_listen(ai, port);
+            socket_listen_accept(ai, port);
 
             host_resolve("::", &ai);
             ai_addr_str(ai, addrstr, 256, 1);
             printf("listening %s:%d\n", addrstr, port);
-            socket_listen(ai, port);
+            socket_listen_accept(ai, port);
         }
         
 

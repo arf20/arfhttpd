@@ -18,6 +18,8 @@
 
 */
 
+#include <pthread.h>
+
 #ifndef _CONFIG_H
 #define _CONFIG_H
 
@@ -28,9 +30,19 @@ typedef struct string_node_s {
     struct string_node_s *next;
 } string_node_t;
 
+typedef struct int_node_s {
+    int v;
+    pthread_t thread;
+    struct int_node_s *prev;
+    struct int_node_s *next;
+} fd_thread_node_t;
+
 /* Config */
 extern const char *webroot;
 extern string_node_t *listen_list;
+
+string_node_t *string_list_new(string_node_t *prev);
+fd_thread_node_t *int_list_new(fd_thread_node_t *prev);
 
 void config_parse(const char *config);
 

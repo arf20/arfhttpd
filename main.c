@@ -25,6 +25,8 @@
 #include <string.h>
 #include <errno.h>
 
+#include <pthread.h>
+
 #include "config.h"
 #include "socket.h"
 
@@ -56,8 +58,22 @@ main(int argc, char **argv) {
 
     printf("webroot %s\n", webroot);
 
+    /* Start accept threads */
     server_start(listen_list);
 
+    /* Join accept threads (wait for them to exit) */
+    if (!listen_socket_list) {
+        printf("Nothing to accept\n");
+        exit(1);
+    }
+    fd_thread_node_t *listen_socket_list_current = listen_socket_list;
+    while (listen_socket_list_current) {
+        if (pthread_join(listen_socket_list_current->thread, NULL) != 0) {
+            printf("Error joining accept thread\n");
+            exit(1);
+        }
+        listen_socket_list_current = listen_socket_list_current->next;
+    }
 
 
     return 0;

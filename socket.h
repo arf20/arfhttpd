@@ -23,6 +23,8 @@
 
 #include "config.h"
 
+extern fd_thread_node_t *listen_socket_list;
+
 int server_start(string_node_t *listen_list);
 
 #endif

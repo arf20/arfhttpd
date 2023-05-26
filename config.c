@@ -30,6 +30,20 @@
 const char *webroot = NULL;
 string_node_t *listen_list = NULL;
 
+string_node_t *
+string_list_new(string_node_t *prev) {
+    string_node_t *list = malloc(sizeof(string_node_t));
+    list->prev = prev;
+    list->next = NULL;
+}
+
+fd_thread_node_t *
+int_list_new(fd_thread_node_t *prev) {
+    fd_thread_node_t *list = malloc(sizeof(fd_thread_node_t));
+    list->prev = prev;
+    list->next = NULL;
+}
+
 /* str utils */
 int
 isnotspace(char c) {
@@ -61,13 +75,6 @@ stralloccpy(const char *start, size_t length) {
     strncpy(str, start, length);
 }
 
-/* listen list */
-string_node_t *
-listen_list_new(string_node_t *prev) {
-    string_node_t *list = malloc(sizeof(string_node_t));
-    list->prev = prev;
-    list->next = NULL;
-}
 
 void
 config_parse(const char *config) {
@@ -84,7 +91,7 @@ config_parse(const char *config) {
         if (substrchk(key, "webroot ")) {
             webroot = stralloccpy(value, value_length);
         } else if (substrchk(key, "listen ")) {
-            listen_list_current = listen_list_new(listen_list_prev);
+            listen_list_current = string_list_new(listen_list_prev);
             if (!listen_list) listen_list = listen_list_current;
             if (listen_list_prev) listen_list_prev->next = listen_list_current;
             listen_list_current->str = stralloccpy(value, value_length);
