@@ -7,6 +7,8 @@ find_package(Threads REQUIRED)
 
 file (GLOB SRC
     "main.c"
+    "strutils.c"
+    "log.c"
     "config.c"
     "socket.c"
 )

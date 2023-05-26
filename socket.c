@@ -34,50 +34,13 @@
 #include <pthread.h>
 
 #include "config.h"
+#include "strutils.h"
+#include "log.h"
 
 #include "socket.h"
 
 /* Vars */
 fd_thread_node_t *listen_socket_list = NULL;
-
-
-size_t /* from BSD */
-strlcat(char *restrict dst, const char *restrict src, size_t dstsize) {
-    int d_len, s_len, offset, src_index;
-
-    /* obtain initial sizes */
-    d_len = strlen(dst);
-    s_len = strlen(src);
-
-    /* get the end of dst */
-    offset = d_len;
-
-    /* append src */
-    src_index = 0;
-    while(*(src+src_index) != '\0')
-    {
-        *(dst + offset) = *(src + src_index);
-        offset++;
-        src_index++;
-        /* don't copy more than dstsize characters
-           minus one */
-        if(offset == dstsize - 1)
-            break;
-    }
-    /* always cap the string! */
-    *(dst + offset) = '\0';
-
-    return d_len + s_len;
-}
-
-void
-strsub(char *dest, size_t destsize, const char *src, size_t n) {
-    int i = 0;
-    for (i = 0; i < n && i < destsize && src[i]; i++)
-        dest[i] = src[i];
-    dest[i] = '\0';
-}
-
 
 
 int
@@ -165,22 +128,44 @@ socket_listen(struct addrinfo *addr, unsigned short port) {
 }
 
 void *
+receive_loop(void *ptr) {
+    int cfd = *(int*)ptr;
+    char recvbuff[RECV_BUFF_SIZE];
+
+    while (1) {
+        int recvlen = read(cfd, recvbuff, RECV_BUFF_SIZE);
+        if (recvlen < 0) {
+            //printf("Error reading client: %s\n", strerror(errno));
+            console_log(LOG_DBG, "Error reading client: ", strerror(errno));
+            return NULL;
+        } else if (recvlen == 0) {
+
+        }
+    }
+}
+
+void *
 accept_loop(void *ptr) {
     int lfd = *(int*)ptr;
     int cfd = -1;
     struct sockaddr sa;
-    socklen_t salen;
+    socklen_t salen = sizeof(struct sockaddr);
     char addrstr[128];
 
     while (1) {
         cfd = accept(lfd, &sa, &salen);
         if (cfd < 0) {
-            printf("Error accepting client: %s\n", strerror(errno));
+           console_log(LOG_DBG, "Error accepting client: ", strerror(errno));
             return NULL;
         }
 
         sa_addr_str(&sa, addrstr, 128);
-        printf("Accepted client %s\n", addrstr);
+        console_log(LOG_INFO, "Accepted client: ", addrstr);
+
+        /* Create thread for every incoming connection */
+        pthread_t recv_thread;
+        pthread_create(&recv_thread, NULL, receive_loop, &cfd);
+        pthread_detach(recv_thread);
     }
 }
 
@@ -193,7 +178,6 @@ socket_listen_accept(struct addrinfo *ai, unsigned short port) {
     /* run accept thread */
     pthread_t accept_thread;
     pthread_create(&accept_thread, NULL, accept_loop, &lfd);
-    /*pthread_detach(accept_thread);*/
 
     /* push element */
     static fd_thread_node_t *listen_socket_list_prev;
@@ -248,7 +232,6 @@ server_start(string_node_t *listen_list) {
             printf("listening %s:%d\n", addrstr, port);
             socket_listen_accept(ai, port);
         }
-        
 
         listen_list_current = listen_list_current->next;
     }

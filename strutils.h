@@ -18,36 +18,12 @@
 
 */
 
-#include <pthread.h>
+#ifndef _STRUTILS_H
+#define _STRUTILS_H
 
-#ifndef _CONFIG_H
-#define _CONFIG_H
+#include <stdlib.h>
 
-/* Macros */
-#define RECV_BUFF_SIZE  65535
-
-/* Types */
-typedef struct string_node_s {
-    const char *str;
-    struct string_node_s *prev;
-    struct string_node_s *next;
-} string_node_t;
-
-typedef struct int_node_s {
-    int v;
-    pthread_t thread;
-    struct int_node_s *prev;
-    struct int_node_s *next;
-} fd_thread_node_t;
-
-/* Config */
-extern const char *webroot;
-extern string_node_t *listen_list;
-
-string_node_t *string_list_new(string_node_t *prev);
-fd_thread_node_t *int_list_new(fd_thread_node_t *prev);
-
-void config_parse(const char *config);
+size_t strlcat(char *dst, const char *src, size_t dstsize);
+void strsub(char *dest, size_t destsize, const char *src, size_t n);
 
 #endif
-
