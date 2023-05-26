@@ -26,6 +26,7 @@
 #define LOG_INFO    2
 #define LOG_DBG     3
 
-void console_log(int severity, const char *msg, const char *str);
+void console_log(int severity, const char *client, const char *msg,
+    const char *str);
 
 #endif

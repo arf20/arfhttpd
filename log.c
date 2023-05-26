@@ -34,7 +34,9 @@ static char logbuff[LOG_BUFFER_SIZE];
 struct timeval tv;
 struct tm *tm_local;
 
-void console_log(int severity, const char *msg, const char *str) {
+void console_log(int severity, const char *client, const char *msg,
+    const char *str)
+{
     logbuff[0] = '[';
 
     gettimeofday(&tv, NULL);
@@ -44,7 +46,7 @@ void console_log(int severity, const char *msg, const char *str) {
     int aftertime = strftime(logbuff + 1, LOG_BUFFER_SIZE - 1,
         "%d/%m/%Y:%H:%M:", tm_local);
     snprintf(logbuff + 1 + aftertime, LOG_BUFFER_SIZE - 1 - aftertime, 
-        "%f] ", sec);
+        "%05.2f] ", sec);
 
     switch (severity) {
         case LOG_ERR:  strlcat(logbuff, "ERROR: ",   LOG_BUFFER_SIZE); break;
@@ -53,7 +55,13 @@ void console_log(int severity, const char *msg, const char *str) {
         case LOG_DBG:  strlcat(logbuff, "Debug: ",   LOG_BUFFER_SIZE); break;
     }
 
+    if (client)
+        strlcat(logbuff, client, LOG_BUFFER_SIZE);
+
+    strlcat(logbuff, " ", LOG_BUFFER_SIZE);
+
     strlcat(logbuff, msg, LOG_BUFFER_SIZE);
+
     if (str)
         strlcat(logbuff, str, LOG_BUFFER_SIZE);
 

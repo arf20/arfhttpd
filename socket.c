@@ -43,6 +43,12 @@
 fd_thread_node_t *listen_socket_list = NULL;
 
 
+typedef struct {
+    int fd;
+    const char *addrstr;
+} client_t;
+
+
 int
 host_resolve(const char *host, struct addrinfo **addrs) {
     struct addrinfo hints = { 0 };
@@ -129,17 +135,23 @@ socket_listen(struct addrinfo *addr, unsigned short port) {
 
 void *
 receive_loop(void *ptr) {
-    int cfd = *(int*)ptr;
+    client_t *cs = (client_t*)ptr;
+    int cfd = cs->fd;
+    const char *addrstr = cs->addrstr;
     char recvbuff[RECV_BUFF_SIZE];
 
     while (1) {
         int recvlen = read(cfd, recvbuff, RECV_BUFF_SIZE);
         if (recvlen < 0) {
             //printf("Error reading client: %s\n", strerror(errno));
-            console_log(LOG_DBG, "Error reading client: ", strerror(errno));
+            console_log(LOG_DBG, addrstr, "Error reading client: ",
+                strerror(errno));
             return NULL;
         } else if (recvlen == 0) {
-
+            console_log(LOG_DBG, addrstr, "Client disconnected", NULL);
+            return NULL;
+        } else {
+            fwrite(recvbuff, recvlen, 1, stdout);
         }
     }
 }
@@ -150,21 +162,25 @@ accept_loop(void *ptr) {
     int cfd = -1;
     struct sockaddr sa;
     socklen_t salen = sizeof(struct sockaddr);
-    char addrstr[128];
 
     while (1) {
         cfd = accept(lfd, &sa, &salen);
         if (cfd < 0) {
-           console_log(LOG_DBG, "Error accepting client: ", strerror(errno));
+           console_log(LOG_DBG, NULL, "Accepting client: ", strerror(errno));
             return NULL;
         }
 
+        char *addrstr = malloc(128);
+        client_t *cs = malloc(sizeof(client_t));
+        cs->addrstr = addrstr;
+        cs->fd = cfd;
+
         sa_addr_str(&sa, addrstr, 128);
-        console_log(LOG_INFO, "Accepted client: ", addrstr);
+        console_log(LOG_DBG, addrstr, "Accepted client", NULL);
 
         /* Create thread for every incoming connection */
         pthread_t recv_thread;
-        pthread_create(&recv_thread, NULL, receive_loop, &cfd);
+        pthread_create(&recv_thread, NULL, receive_loop, cs);
         pthread_detach(recv_thread);
     }
 }
