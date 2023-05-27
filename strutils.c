@@ -60,4 +60,3 @@ strsub(char *dest, size_t destsize, const char *src, size_t n) {
         dest[i] = src[i];
     dest[i] = '\0';
 }
-

@@ -49,16 +49,18 @@ void console_log(int severity, const char *client, const char *msg,
         "%05.2f] ", sec);
 
     switch (severity) {
-        case LOG_ERR:  strlcat(logbuff, "ERROR: ",   LOG_BUFFER_SIZE); break;
-        case LOG_WARN: strlcat(logbuff, "Warning: ", LOG_BUFFER_SIZE); break;
-        case LOG_INFO: strlcat(logbuff, "Info: ",    LOG_BUFFER_SIZE); break;
-        case LOG_DBG:  strlcat(logbuff, "Debug: ",   LOG_BUFFER_SIZE); break;
+        case LOG_ERR:  strlcat(logbuff, "ERROR:",   LOG_BUFFER_SIZE); break;
+        case LOG_WARN: strlcat(logbuff, "Warning:", LOG_BUFFER_SIZE); break;
+        case LOG_INFO: strlcat(logbuff, "Info:",    LOG_BUFFER_SIZE); break;
+        case LOG_DBG:  strlcat(logbuff, "Debug:",   LOG_BUFFER_SIZE); break;
     }
+
+    strlcat(logbuff, "\t", LOG_BUFFER_SIZE);
 
     if (client)
         strlcat(logbuff, client, LOG_BUFFER_SIZE);
 
-    strlcat(logbuff, " ", LOG_BUFFER_SIZE);
+    strlcat(logbuff, "\t", LOG_BUFFER_SIZE);
 
     strlcat(logbuff, msg, LOG_BUFFER_SIZE);
 

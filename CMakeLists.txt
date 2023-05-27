@@ -11,6 +11,7 @@ file (GLOB SRC
     "log.c"
     "config.c"
     "socket.c"
+    "http.c"
 )
 
 add_executable(arfhttpd ${SRC})

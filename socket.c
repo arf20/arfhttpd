@@ -36,17 +36,12 @@
 #include "config.h"
 #include "strutils.h"
 #include "log.h"
+#include "http.h"
 
 #include "socket.h"
 
 /* Vars */
 fd_thread_node_t *listen_socket_list = NULL;
-
-
-typedef struct {
-    int fd;
-    const char *addrstr;
-} client_t;
 
 
 int
@@ -138,10 +133,10 @@ receive_loop(void *ptr) {
     client_t *cs = (client_t*)ptr;
     int cfd = cs->fd;
     const char *addrstr = cs->addrstr;
-    char recvbuff[RECV_BUFF_SIZE];
+    char recvbuff[BUFF_SIZE];
 
     while (1) {
-        int recvlen = read(cfd, recvbuff, RECV_BUFF_SIZE);
+        int recvlen = read(cfd, recvbuff, BUFF_SIZE);
         if (recvlen < 0) {
             //printf("Error reading client: %s\n", strerror(errno));
             console_log(LOG_DBG, addrstr, "Error reading client: ",
@@ -151,7 +146,7 @@ receive_loop(void *ptr) {
             console_log(LOG_DBG, addrstr, "Client disconnected", NULL);
             return NULL;
         } else {
-            fwrite(recvbuff, recvlen, 1, stdout);
+            http_process(cs, recvbuff, recvlen);
         }
     }
 }
