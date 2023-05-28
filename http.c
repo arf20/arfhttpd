@@ -87,13 +87,11 @@ void
 http_process(const client_t *cs, const char *buff, size_t len) {
     //fwrite(buff, len, 1, stdout);
 
-    
     const char *endpoint_ptr = find_field(buff);
     if (!endpoint_ptr) {
         console_log(LOG_ERR, cs->addrstr,"Missing endpoint", NULL);
         return;
     }
-
 
     const char *http_version = find_field(endpoint_ptr);
     if (!http_version) {
@@ -115,7 +113,7 @@ http_process(const client_t *cs, const char *buff, size_t len) {
         strlcat(logbuff, " -> ", 1024);
         strlcat(logbuff, path, 1024);
 
-        FILE *file = fopen(path, "r");
+        FILE *file = fopen(path, "rb");
         if (file) {
             snprintf(sendbuff, BUFF_SIZE, "HTTP/1.1 200 OK\n\n");
             convertcrlf(sendbuff, BUFF_SIZE);

@@ -147,6 +147,7 @@ receive_loop(void *ptr) {
             return NULL;
         } else {
             http_process(cs, recvbuff, recvlen);
+            return NULL;
         }
     }
 }
