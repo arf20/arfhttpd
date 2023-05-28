@@ -30,6 +30,7 @@
 #include <netinet/tcp.h>
 
 #include "config.h"
+#include "strutils.h"
 #include "log.h"
 
 #include "http.h"
@@ -37,6 +38,7 @@
 
 char sendbuff[BUFF_SIZE];
 char logbuff[1024];
+char endpoint[1024];
 
 int
 strlencrlf(const char *str) {
@@ -83,29 +85,55 @@ find_field(const char *str) {
 
 void
 http_process(const client_t *cs, const char *buff, size_t len) {
-    fwrite(buff, len, 1, stdout);
+    //fwrite(buff, len, 1, stdout);
 
-    const char *http_endpoint = find_field(buff);
-    if (!http_endpoint) {
+    
+    const char *endpoint_ptr = find_field(buff);
+    if (!endpoint_ptr) {
         console_log(LOG_ERR, cs->addrstr,"Missing endpoint", NULL);
         return;
     }
 
-    const char *http_version = find_field(http_endpoint);
+
+    const char *http_version = find_field(endpoint_ptr);
     if (!http_version) {
         console_log(LOG_ERR, cs->addrstr, "Missing version", NULL);
         return;
     }
 
-    strncpy(logbuff, buff, http_version - buff);
-    console_log(LOG_INFO, cs->addrstr, logbuff, NULL);
+    strncpy(endpoint, endpoint_ptr, http_version - endpoint_ptr - 1);
+    endpoint[http_version - endpoint_ptr - 1] = '\0';
+
+    strncpy(logbuff, buff, http_version - buff - 1);
+    logbuff[http_version - buff - 1] = '\0';
 
     /* Handle methods */
     if (strncmp(buff, "GET", 3) == 0) {
-        
+        char path[512];
+        snprintf(path, 512, "%s%s", webroot, endpoint);
+
+        strlcat(logbuff, " -> ", 1024);
+        strlcat(logbuff, path, 1024);
+
+        FILE *file = fopen(path, "r");
+        if (file) {
+            snprintf(sendbuff, BUFF_SIZE, "HTTP/1.1 200 OK\n\n");
+            convertcrlf(sendbuff, BUFF_SIZE);
+            int headerend = strlen(sendbuff);
+            fread(sendbuff + headerend, 1, BUFF_SIZE - headerend, file);
+            send(cs->fd, sendbuff, strlen(sendbuff), 0);
+        } else {
+            snprintf(sendbuff, BUFF_SIZE, "HTTP/1.1 404 Not Found\n\n");
+            convertcrlf(sendbuff, BUFF_SIZE);
+            send(cs->fd, sendbuff, strlen(sendbuff), 0);
+        }
     } else {
-        snprintf(sendbuff, BUFF_SIZE, "HTTP/1.1 501 Not Implemented\n");
+        snprintf(sendbuff, BUFF_SIZE, "HTTP/1.1 501 Not Implemented\n\n");
         convertcrlf(sendbuff, BUFF_SIZE);
         send(cs->fd, sendbuff, strlen(sendbuff), 0);
     }
+
+    close(cs->fd);
+
+    console_log(LOG_INFO, cs->addrstr, logbuff, NULL);
 }
