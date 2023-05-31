@@ -20,6 +20,7 @@
 
 */
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
@@ -29,6 +30,7 @@
 /* Config */
 const char *webroot = NULL;
 string_node_t *listen_list = NULL;
+location_node_t *location_list = NULL;
 
 string_node_t *
 string_list_new(string_node_t *prev) {
@@ -38,8 +40,22 @@ string_list_new(string_node_t *prev) {
 }
 
 fd_thread_node_t *
-int_list_new(fd_thread_node_t *prev) {
+fd_thread_list_new(fd_thread_node_t *prev) {
     fd_thread_node_t *list = malloc(sizeof(fd_thread_node_t));
+    list->prev = prev;
+    list->next = NULL;
+}
+
+location_node_t *
+location_list_new(location_node_t *prev) {
+    location_node_t *list = malloc(sizeof(location_node_t));
+    list->prev = prev;
+    list->next = NULL;
+}
+
+config_node_t *
+config_list_new(config_node_t *prev) {
+    config_node_t *list = malloc(sizeof(config_node_t));
     list->prev = prev;
     list->next = NULL;
 }
@@ -78,16 +94,27 @@ stralloccpy(const char *start, size_t length) {
 
 void
 config_parse(const char *config) {
+    size_t config_length = strlen(config);
     string_node_t *listen_list_current = NULL, *listen_list_prev = NULL;
 
-    const char *key, *value, *value_end;
+    int line = 0;
+    const char *ptr = config, *key, *value, *value_end;
     size_t value_length;
-    while (*config) {
-        key = findalnum(config);
+    while (ptr && *ptr && ptr < ptr + config_length) {
+        key = findalnum(ptr);
+        if (!key) { /* Ignore empty lines */
+            ptr = strchr(ptr, '\n');
+            continue;
+        }
         value = find_value(key);
+        if (!value) { /* Ignore missing values */
+            ptr = strchr(ptr, '\n');
+            continue;
+        }
         value_end = strchr(value, '\n');
         value_length = value_end - value;
 
+        /* Valid keys */
         if (substrchk(key, "webroot ")) {
             webroot = stralloccpy(value, value_length);
         } else if (substrchk(key, "listen ")) {
@@ -96,8 +123,13 @@ config_parse(const char *config) {
             if (listen_list_prev) listen_list_prev->next = listen_list_current;
             listen_list_current->str = stralloccpy(value, value_length);
             listen_list_prev = listen_list_current;
+        } else if (substrchk(key, "location ")) {
+            
+        } else {
+            printf("Invalid config key, line %d\n", line);
         }
 
-        config = value_end + 1;
+        ptr = value_end + 1;
+        line++;
     }
 }

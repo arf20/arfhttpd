@@ -33,19 +33,45 @@ typedef struct string_node_s {
     struct string_node_s *next;
 } string_node_t;
 
-typedef struct int_node_s {
-    int v;
+typedef struct fd_thread_node_s {
+    int fd;
     pthread_t thread;
-    struct int_node_s *prev;
-    struct int_node_s *next;
+    struct fd_thread_node_s *prev;
+    struct fd_thread_node_s *next;
 } fd_thread_node_t;
+
+
+/* Webserver config types */
+typedef enum {
+    CONFIG_ROOT,    /* Real path root */
+    CONFIG_HEADER,  /* Defines header */
+    CONFIG_MIME,    /* Enables MIME type header */
+    CONFIG_INDEX    /* Default index file */
+} config_type_t;
+
+typedef struct config_node_s {
+    config_type_t type;
+    const char *param1;
+    const char *param2;
+    struct config_node_s *prev;
+    struct config_node_s *next;
+} config_node_t;
+
+typedef struct location_node_s {
+    const char *location;
+    config_node_t *config;
+    struct location_node_s *prev;
+    struct location_node_s *next;
+} location_node_t;
 
 /* Config */
 extern const char *webroot;
 extern string_node_t *listen_list;
 
 string_node_t *string_list_new(string_node_t *prev);
-fd_thread_node_t *int_list_new(fd_thread_node_t *prev);
+fd_thread_node_t *fd_thread_list_new(fd_thread_node_t *prev);
+location_node_t *location_list_new(location_node_t *prev);
+config_node_t *config_list_new(config_node_t *prev);
 
 void config_parse(const char *config);
 

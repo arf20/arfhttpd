@@ -138,8 +138,7 @@ receive_loop(void *ptr) {
     while (1) {
         int recvlen = read(cfd, recvbuff, BUFF_SIZE);
         if (recvlen < 0) {
-            //printf("Error reading client: %s\n", strerror(errno));
-            console_log(LOG_DBG, addrstr, "Error reading client: ",
+            console_log(LOG_ERR, addrstr, "Error reading client: ",
                 strerror(errno));
             return NULL;
         } else if (recvlen == 0) {
@@ -162,7 +161,7 @@ accept_loop(void *ptr) {
     while (1) {
         cfd = accept(lfd, &sa, &salen);
         if (cfd < 0) {
-           console_log(LOG_DBG, NULL, "Accepting client: ", strerror(errno));
+            console_log(LOG_ERR, NULL, "Accepting client: ", strerror(errno));
             return NULL;
         }
 
@@ -194,11 +193,13 @@ socket_listen_accept(struct addrinfo *ai, unsigned short port) {
     /* push element */
     static fd_thread_node_t *listen_socket_list_prev;
     fd_thread_node_t *listen_socket_list_current =
-        int_list_new(listen_socket_list_prev);
+        fd_thread_list_new(listen_socket_list_prev);
     if (!listen_socket_list) listen_socket_list = listen_socket_list_current;
-    if (listen_socket_list_prev)
+    if (listen_socket_list_prev) {
         listen_socket_list_prev->next = listen_socket_list_current;
-    listen_socket_list_current->v = lfd;
+        listen_socket_list_current->prev = listen_socket_list_prev;
+    }
+    listen_socket_list_current->fd = lfd;
     listen_socket_list_current->thread = accept_thread;
 }
 
@@ -235,11 +236,6 @@ server_start(string_node_t *listen_list) {
             if (port == 0) printf("Error invalid port or wrong separator (/)\n");
 
             host_resolve("0.0.0.0", &ai);
-            ai_addr_str(ai, addrstr, 256, 1);
-            printf("listening %s:%d\n", addrstr, port);
-            socket_listen_accept(ai, port);
-
-            host_resolve("::", &ai);
             ai_addr_str(ai, addrstr, 256, 1);
             printf("listening %s:%d\n", addrstr, port);
             socket_listen_accept(ai, port);
