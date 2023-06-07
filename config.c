@@ -28,17 +28,18 @@
 #include "strutils.h"
 #include "config.h"
 
+const char *config_type_strs[] = {
+    "webroot",
+    "header",
+    "mime",
+    "index"
+};
+
 /* Config */
 const char *webroot = NULL;
 string_node_t *listen_list = NULL;
-location_node_t *location_list = NULL;
+location_node_t *location_list = NULL, *location_current = NULL;
 
-string_node_t *
-string_list_new(string_node_t *prev) {
-    string_node_t *list = malloc(sizeof(string_node_t));
-    list->prev = prev;
-    list->next = NULL;
-}
 
 string_node_t *
 string_list_push(string_node_t **head, const char *str, size_t len) {
@@ -48,7 +49,7 @@ string_list_push(string_node_t **head, const char *str, size_t len) {
     if (*head) {
         end = *head;
         while (end->next) end = end->next;
-        end->next = new; // fucks up?
+        end->next = new;
         new->prev = *head;
     } else {
         *head = new;
@@ -58,25 +59,58 @@ string_list_push(string_node_t **head, const char *str, size_t len) {
     return new;
 }
 
-fd_thread_node_t *
-fd_thread_list_new(fd_thread_node_t *prev) {
-    fd_thread_node_t *list = malloc(sizeof(fd_thread_node_t));
-    list->prev = prev;
-    list->next = NULL;
+location_node_t *
+location_list_push(location_node_t **head, const char *loc, size_t len) {
+    if (!head) return NULL;
+    location_node_t *end = NULL;
+    location_node_t *new = malloc(sizeof(location_node_t));
+    if (*head) {
+        end = *head;
+        while (end->next) end = end->next;
+        end->next = new;
+        new->prev = *head;
+    } else {
+        *head = new;
+    }
+    new->next = NULL;
+    new->location = stralloccpy(loc, len);
+    new->config = NULL;
+    return new;
 }
 
 location_node_t *
-location_list_new(location_node_t *prev) {
-    location_node_t *list = malloc(sizeof(location_node_t));
-    list->prev = prev;
-    list->next = NULL;
+location_list_find(location_node_t *head, const char *loc) {
+    if (!head) return NULL;
+    location_node_t *ptr = head;
+    while (ptr) {
+        if (strcmp(ptr->location, loc) == 0) return ptr;
+        ptr = ptr->next;
+    }
+    return NULL;
 }
 
 config_node_t *
-config_list_new(config_node_t *prev) {
-    config_node_t *list = malloc(sizeof(config_node_t));
-    list->prev = prev;
-    list->next = NULL;
+config_list_push(config_node_t **head, config_type_t type,
+    const char *p1, const char *p2)
+{
+    if (!head) return NULL;
+    config_node_t *end = NULL;
+    config_node_t *new = malloc(sizeof(config_node_t));
+    if (*head) {
+        end = *head;
+        while (end->next) end = end->next;
+        end->next = new;
+        new->prev = *head;
+    } else {
+        *head = new;
+    }
+    new->next = NULL;
+    new->type = type;
+    if (p1)
+        new->param1 = stralloccpy(p1, strlen(p1));
+    if (p2)
+        new->param1 = stralloccpy(p2, strlen(p2));
+    return new;
 }
 
 /* str utils */
@@ -127,18 +161,30 @@ config_parse(const char *config) {
         value_end = strchr(value, '\n');
         value_length = value_end - value;
 
-        fwrite(value, 1, value_length, stdout);
-        printf("\n");
-
         /* Valid keys */
-        if (substrchk(key, "webroot ")) {
-            webroot = stralloccpy(value, value_length);
-        } else if (substrchk(key, "listen ")) {
+        /* Context-less */
+        if (substrchk(key, "listen ")) {
             string_list_push(&listen_list, value, value_length);
-        } else if (substrchk(key, "location ")) {
-            
-        } else {
-            printf("Invalid config key, line %d\n", line);
+        }
+        else if (substrchk(key, "location ")) {
+            char loc[1024]; loc[0] = '\0';
+            strncat(loc, value, value_length);
+            if (location_list_find(location_list, loc)) {
+                printf("Warning: Duplicated location, line %d\n", line);
+            } else {
+                location_current = location_list_push(&location_list,
+                    loc, strlen(loc));
+            }
+        }
+        /* Location context */
+        else if (substrchk(key, "webroot ")) {
+            char path[1024]; path[0] = '\0';
+            strncat(path, value, value_length);
+            config_list_push(&location_current->config, CONFIG_ROOT, path, NULL);
+        }
+        
+        else {
+            printf("Warning: Invalid config key, line %d\n", line);
         }
 
         ptr = value_end + 1;

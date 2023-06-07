@@ -43,6 +43,24 @@
 /* Vars */
 fd_thread_node_t *listen_socket_list = NULL;
 
+fd_thread_node_t *
+fd_thread_list_push(fd_thread_node_t **head, int fd, pthread_t thread) {
+    if (!head) return NULL;
+    fd_thread_node_t *end = NULL;
+    fd_thread_node_t *new = malloc(sizeof(fd_thread_node_t));
+    if (*head) {
+        end = *head;
+        while (end->next) end = end->next;
+        end->next = new;
+        new->prev = *head;
+    } else {
+        *head = new;
+    }
+    new->next = NULL;
+    new->fd = fd;
+    new->thread = thread;
+    return new;
+}
 
 int
 host_resolve(const char *host, struct addrinfo **addrs) {
@@ -157,11 +175,13 @@ accept_loop(void *ptr) {
     int cfd = -1;
     struct sockaddr sa;
     socklen_t salen = sizeof(struct sockaddr);
+    char lfdstr[16];
+    snprintf(lfdstr, 16, "%d", lfd);
 
     while (1) {
         cfd = accept(lfd, &sa, &salen);
         if (cfd < 0) {
-            console_log(LOG_ERR, NULL, "Accepting client: ", strerror(errno));
+            console_log(LOG_ERR, lfdstr, "Accepting client: ", strerror(errno));
             return NULL;
         }
 
@@ -180,27 +200,20 @@ accept_loop(void *ptr) {
     }
 }
 
-void
+int
 socket_listen_accept(struct addrinfo *ai, unsigned short port) {
     /* listen */
     int lfd = socket_listen(ai, port);
-    if (lfd < 0) return;
+    if (lfd < 0) return -1;
 
     /* run accept thread */
     pthread_t accept_thread;
     pthread_create(&accept_thread, NULL, accept_loop, &lfd);
 
     /* push element */
-    static fd_thread_node_t *listen_socket_list_prev;
-    fd_thread_node_t *listen_socket_list_current =
-        fd_thread_list_new(listen_socket_list_prev);
-    if (!listen_socket_list) listen_socket_list = listen_socket_list_current;
-    if (listen_socket_list_prev) {
-        listen_socket_list_prev->next = listen_socket_list_current;
-        listen_socket_list_current->prev = listen_socket_list_prev;
-    }
-    listen_socket_list_current->fd = lfd;
-    listen_socket_list_current->thread = accept_thread;
+    fd_thread_list_push(&listen_socket_list, lfd, accept_thread);
+
+    return lfd;
 }
 
 int
@@ -228,8 +241,8 @@ server_start(string_node_t *listen_list) {
 
             ai_addr_str(ai, addrstr, 256, 1);
 
-            printf("listening %s:%d\n", addrstr, port);
-            socket_listen_accept(ai, port);
+            int lfd = socket_listen_accept(ai, port);
+            printf("listening %s:%d %d\n", addrstr, port, lfd);
         } else { /* assume port */
             port = atoi(listen_list_current->str);
 
@@ -237,8 +250,9 @@ server_start(string_node_t *listen_list) {
 
             host_resolve("0.0.0.0", &ai);
             ai_addr_str(ai, addrstr, 256, 1);
-            printf("listening %s:%d\n", addrstr, port);
-            socket_listen_accept(ai, port);
+            int lfd = socket_listen_accept(ai, port);
+
+            printf("listening %s:%d %d\n", addrstr, port, lfd);
         }
 
         listen_list_current = listen_list_current->next;

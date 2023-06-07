@@ -49,6 +49,8 @@ typedef enum {
     CONFIG_INDEX    /* Default index file */
 } config_type_t;
 
+extern const char *config_type_strs[];
+
 typedef struct config_node_s {
     config_type_t type;
     const char *param1;
@@ -67,6 +69,7 @@ typedef struct location_node_s {
 /* Config */
 extern const char *webroot;
 extern string_node_t *listen_list;
+extern location_node_t *location_list;
 
 string_node_t *string_list_new(string_node_t *prev);
 fd_thread_node_t *fd_thread_list_new(fd_thread_node_t *prev);

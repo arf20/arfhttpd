@@ -58,6 +58,23 @@ main(int argc, char **argv) {
 
     printf("webroot %s\n", webroot);
 
+    /* Print location config */
+    location_node_t *location_current = location_list;
+    while (location_current) {
+        printf("location %s\n", location_current->location);
+        
+        config_node_t *config_current = location_current->config;
+        while (config_current) {
+            printf("\t%s ", config_type_strs[config_current->type]);
+            if (config_current->param1) printf("%s ", config_current->param1);
+            if (config_current->param2) printf("%s", config_current->param2);
+            printf("\n");
+            config_current = config_current->next;
+        }
+
+        location_current = location_current->next;
+    }
+
     /* Start accept threads */
     server_start(listen_list);
 
@@ -66,14 +83,16 @@ main(int argc, char **argv) {
         printf("Nothing to accept\n");
         exit(1);
     }
-    fd_thread_node_t *listen_socket_list_current = listen_socket_list;
-    while (listen_socket_list_current) {
-        if (pthread_join(listen_socket_list_current->thread, NULL) != 0) {
+    fd_thread_node_t *listen_socket_current = listen_socket_list;
+    while (listen_socket_current) {
+        if (pthread_join(listen_socket_current->thread, NULL) != 0) {
             printf("Error joining accept thread\n");
             exit(1);
         }
-        listen_socket_list_current = listen_socket_list_current->next;
+        listen_socket_current = listen_socket_current->next;
     }
+
+
 
 
     return 0;
