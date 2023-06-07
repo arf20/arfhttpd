@@ -36,7 +36,6 @@ const char *config_type_strs[] = {
 };
 
 /* Config */
-const char *webroot = NULL;
 string_node_t *listen_list = NULL;
 location_node_t *location_list = NULL, *location_current = NULL;
 
@@ -139,7 +138,8 @@ substrchk(const char *str, const char *substr) {
 }
 
 
-void
+
+int
 config_parse(const char *config) {
     size_t config_length = strlen(config);
     string_node_t *listen_list_current = NULL, *listen_list_prev = NULL;
@@ -190,4 +190,23 @@ config_parse(const char *config) {
         ptr = value_end + 1;
         line++;
     }
+
+    /* Check config */
+    if (!location_list) printf("Error: No location\n");
+
+    location_node_t *location_current = location_list;
+    while (location_current) {    
+        int haspoint = 0;    
+        config_node_t *config_current = location_current->config;
+        while (config_current) {
+            if (config_current->type == CONFIG_ROOT) haspoint = 1;
+            config_current = config_current->next;
+        }
+        if (!haspoint) printf("Error: No point in location %s\n",
+            location_current->location);
+
+        location_current = location_current->next;
+    }
+
+    return 0;
 }

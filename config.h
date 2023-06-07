@@ -67,7 +67,6 @@ typedef struct location_node_s {
 } location_node_t;
 
 /* Config */
-extern const char *webroot;
 extern string_node_t *listen_list;
 extern location_node_t *location_list;
 
@@ -76,7 +75,7 @@ fd_thread_node_t *fd_thread_list_new(fd_thread_node_t *prev);
 location_node_t *location_list_new(location_node_t *prev);
 config_node_t *config_list_new(config_node_t *prev);
 
-void config_parse(const char *config);
+int config_parse(const char *config);
 
 #endif
 

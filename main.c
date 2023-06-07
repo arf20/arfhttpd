@@ -56,8 +56,6 @@ main(int argc, char **argv) {
 
     config_parse(config);
 
-    printf("webroot %s\n", webroot);
-
     /* Print location config */
     location_node_t *location_current = location_list;
     while (location_current) {

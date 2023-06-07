@@ -83,13 +83,54 @@ find_field(const char *str) {
     return field + 1;
 }
 
+
+void
+send404(const client_t *cs) {
+    snprintf(sendbuff, BUFF_SIZE, "HTTP/1.1 404 Not Found\n\n");
+    convertcrlf(sendbuff, BUFF_SIZE);
+    if (send(cs->fd, sendbuff, strlen(sendbuff), 0) < 0) {
+        console_log(LOG_ERR, cs->addrstr, "Error sending", NULL);
+    }
+}
+
+
+location_node_t *
+location_find(location_node_t **head, const char *endpoint) {
+    if (head) return NULL;
+    location_node_t *location_current = location_list, *location_best = NULL;
+    int bestn = 0;
+    while (location_current) {
+        int i = 0, n = 0;
+        while (endpoint[i] && location_current->location[i]) {
+            if (endpoint[i] == location_current->location[i]) n++;
+            i++;
+        }
+
+        if (n > bestn) {
+            location_best = location_current;
+            bestn = n;
+        }
+
+        location_current = location_current->next;
+    }
+    return location_best;
+}
+
+const char *
+config_find_root(config_node_t *head) {
+    while (head) {
+        if (head->type == CONFIG_ROOT);
+        return head->param1;
+        head = head->next;
+    }
+    return NULL;
+}
+
 void
 http_process(const client_t *cs, const char *buff, size_t len) {
-    //fwrite(buff, len, 1, stdout);
-
     const char *endpoint_ptr = find_field(buff);
     if (!endpoint_ptr) {
-        console_log(LOG_ERR, cs->addrstr,"Missing endpoint", NULL);
+        console_log(LOG_ERR, cs->addrstr, "Missing endpoint", NULL);
         return;
     }
 
@@ -107,6 +148,11 @@ http_process(const client_t *cs, const char *buff, size_t len) {
 
     /* Handle methods */
     if (strncmp(buff, "GET", 3) == 0) {
+        location_node_t *location = location_find(&location_list, endpoint);
+        if (!location) send404(cs);
+
+        const char *webroot = config_find_root(location->config);
+
         char path[512];
         snprintf(path, 512, "%s%s", webroot, endpoint);
 
@@ -121,9 +167,7 @@ http_process(const client_t *cs, const char *buff, size_t len) {
             fread(sendbuff + headerend, 1, BUFF_SIZE - headerend, file);
             send(cs->fd, sendbuff, strlen(sendbuff), 0);
         } else {
-            snprintf(sendbuff, BUFF_SIZE, "HTTP/1.1 404 Not Found\n\n");
-            convertcrlf(sendbuff, BUFF_SIZE);
-            send(cs->fd, sendbuff, strlen(sendbuff), 0);
+            send404(cs);
         }
     } else {
         snprintf(sendbuff, BUFF_SIZE, "HTTP/1.1 501 Not Implemented\n\n");
