@@ -60,3 +60,9 @@ strsub(char *dest, size_t destsize, const char *src, size_t n) {
         dest[i] = src[i];
     dest[i] = '\0';
 }
+
+char *
+stralloccpy(const char *start, size_t length) {
+    char *str = malloc(length);
+    strncpy(str, start, length);
+}

@@ -25,6 +25,7 @@
 #include <string.h>
 #include <ctype.h>
 
+#include "strutils.h"
 #include "config.h"
 
 /* Config */
@@ -37,6 +38,24 @@ string_list_new(string_node_t *prev) {
     string_node_t *list = malloc(sizeof(string_node_t));
     list->prev = prev;
     list->next = NULL;
+}
+
+string_node_t *
+string_list_push(string_node_t **head, const char *str, size_t len) {
+    if (!head) return NULL;
+    string_node_t *end = NULL;
+    string_node_t *new = malloc(sizeof(string_node_t));
+    if (*head) {
+        end = *head;
+        while (end->next) end = end->next;
+        end->next = new; // fucks up?
+        new->prev = *head;
+    } else {
+        *head = new;
+    }
+    new->next = NULL;
+    new->str = stralloccpy(str, len);
+    return new;
 }
 
 fd_thread_node_t *
@@ -85,12 +104,6 @@ substrchk(const char *str, const char *substr) {
     return strncmp(str, substr, strlen(substr)) == 0;
 }
 
-char *
-stralloccpy(const char *start, size_t length) {
-    char *str = malloc(length);
-    strncpy(str, start, length);
-}
-
 
 void
 config_parse(const char *config) {
@@ -114,15 +127,14 @@ config_parse(const char *config) {
         value_end = strchr(value, '\n');
         value_length = value_end - value;
 
+        fwrite(value, 1, value_length, stdout);
+        printf("\n");
+
         /* Valid keys */
         if (substrchk(key, "webroot ")) {
             webroot = stralloccpy(value, value_length);
         } else if (substrchk(key, "listen ")) {
-            listen_list_current = string_list_new(listen_list_prev);
-            if (!listen_list) listen_list = listen_list_current;
-            if (listen_list_prev) listen_list_prev->next = listen_list_current;
-            listen_list_current->str = stralloccpy(value, value_length);
-            listen_list_prev = listen_list_current;
+            string_list_push(&listen_list, value, value_length);
         } else if (substrchk(key, "location ")) {
             
         } else {

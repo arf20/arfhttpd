@@ -25,5 +25,6 @@
 
 size_t strlcat(char *dst, const char *src, size_t dstsize);
 void strsub(char *dest, size_t destsize, const char *src, size_t n);
+char *stralloccpy(const char *start, size_t length);
 
 #endif
