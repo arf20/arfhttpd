@@ -29,6 +29,10 @@
 #include <netdb.h>
 #include <netinet/tcp.h>
 
+#include <linux/limits.h>
+#include <sys/stat.h>
+#include <errno.h>
+
 #include "config.h"
 #include "strutils.h"
 #include "log.h"
@@ -89,8 +93,64 @@ send404(const client_t *cs) {
     snprintf(sendbuff, BUFF_SIZE, "HTTP/1.1 404 Not Found\n\n");
     convertcrlf(sendbuff, BUFF_SIZE);
     if (send(cs->fd, sendbuff, strlen(sendbuff), 0) < 0) {
-        console_log(LOG_ERR, cs->addrstr, "Error sending", NULL);
+        console_log(LOG_ERR, cs->addrstr, "Error sending: ", strerror(errno));
     }
+}
+
+void
+send403(const client_t *cs) {
+    snprintf(sendbuff, BUFF_SIZE, "HTTP/1.1 403 Forbidden\n\n");
+    convertcrlf(sendbuff, BUFF_SIZE);
+    if (send(cs->fd, sendbuff, strlen(sendbuff), 0) < 0) {
+        console_log(LOG_ERR, cs->addrstr, "Error sending: ", strerror(errno));
+    }
+}
+
+void
+send501(const client_t *cs) {
+    snprintf(sendbuff, BUFF_SIZE, "HTTP/1.1 501 Not Implemented\n\n");
+    convertcrlf(sendbuff, BUFF_SIZE);
+    if (send(cs->fd, sendbuff, strlen(sendbuff), 0) < 0) {
+        console_log(LOG_ERR, cs->addrstr, "Error sending: ", strerror(errno));
+    }
+}
+
+void
+send503(const client_t *cs) {
+    snprintf(sendbuff, BUFF_SIZE, "HTTP/1.1 503 Service Unavailable\n\n");
+    convertcrlf(sendbuff, BUFF_SIZE);
+    if (send(cs->fd, sendbuff, strlen(sendbuff), 0) < 0) {
+        console_log(LOG_ERR, cs->addrstr, "Error sending: ", strerror(errno));
+    }
+}
+
+void
+send200(const client_t *cs, const char *headers) {
+    snprintf(sendbuff, BUFF_SIZE, "HTTP/1.1 200 OK\n\n");
+    convertcrlf(sendbuff, BUFF_SIZE);
+    if (send(cs->fd, sendbuff, strlen(sendbuff), 0) < 0) {
+        console_log(LOG_ERR, cs->addrstr, "Error sending: ", strerror(errno));
+    }
+}
+
+void
+sendfile(const client_t *cs, FILE *file, size_t size) {
+    size_t nread = 0;
+    while (size) {
+        nread = fread(sendbuff, 1, BUFF_SIZE, file);
+
+        if (send(cs->fd, sendbuff, strlen(sendbuff), 0) < 0) {
+            console_log(LOG_ERR, cs->addrstr, "Error sending: ",
+                strerror(errno));
+        }
+
+        size -= nread;
+    }
+}
+
+void
+sendautoindex(const client_t *cs, const char *path) {
+    send(cs->fd, "le index", 9, 0);
 }
 
 
@@ -119,11 +179,32 @@ location_find(location_node_t **head, const char *endpoint) {
 const char *
 config_find_root(config_node_t *head) {
     while (head) {
-        if (head->type == CONFIG_ROOT);
-        return head->param1;
+        if (head->type == CONFIG_ROOT)
+            return head->param1;
         head = head->next;
     }
     return NULL;
+}
+
+const char *
+config_find_index(config_node_t *head) {
+    while (head) {
+        if (head->type == CONFIG_INDEX)
+            return head->param1;
+        head = head->next;
+    }
+    return NULL;
+}
+
+
+int
+config_find_autoindex(config_node_t *head) {
+    while (head) {
+        if (head->type == CONFIG_AUTOINDEX)
+            return 1;
+        head = head->next;
+    }
+    return 0;
 }
 
 void
@@ -150,43 +231,91 @@ http_process(const client_t *cs, const char *buff, size_t len) {
     if (strncmp(buff, "GET", 3) == 0) {
         location_node_t *location = location_find(&location_list, endpoint);
         if (!location) {
-            send404(cs);
-            close(cs->fd);
             strlcat(logbuff, " -> 404 (no location)", 1024);
-            console_log(LOG_INFO, cs->addrstr, logbuff, NULL);
-            return;
+            send404(cs);
+            goto doclose;
         }
 
         const char *webroot = config_find_root(location->config);
+        if (!webroot) {
+            strlcat(logbuff, " -> 503 (no webroot)", 1024);
+            send503(cs);
+            goto doclose;
+        }
 
-        char path[512];
-        snprintf(path, 512, "%s%s", webroot, endpoint);
+        char path[PATH_MAX];
+        snprintf(path, PATH_MAX, "%s%s", webroot, endpoint);
 
         strlcat(logbuff, " -> ", 1024);
         strlcat(logbuff, path, 1024);
 
-        FILE *file = fopen(path, "rb");
-        if (file) {
-            snprintf(sendbuff, BUFF_SIZE, "HTTP/1.1 200 OK\n\n");
-            convertcrlf(sendbuff, BUFF_SIZE);
-            int headerend = strlen(sendbuff);
-            fread(sendbuff + headerend, 1, BUFF_SIZE - headerend, file);
-            if (send(cs->fd, sendbuff, strlen(sendbuff), 0) < 0) {
-                console_log(LOG_ERR, cs->addrstr, "Error sending", NULL);
+
+        /* Checkout file */
+        struct stat statbuf;
+        if (stat(path, &statbuf) < 0) {
+            if (errno == EACCES) {
+                send403(cs);
+            } else if (errno == ENOENT) {
+                send404(cs);
+            } else {
+                send503(cs);
             }
+            console_log(LOG_DBG, cs->addrstr, "Error stating: ",
+                strerror(errno));
+            goto doclose;
+        }
+        /* It exists and its readable */
+
+        int sendisfile = 0;
+        if (S_ISREG(statbuf.st_mode)) { /* Is regular file */
+            sendisfile = 1;
+        } else if (S_ISDIR(statbuf.st_mode)) { /* Is directory */
+            const char *index = config_find_index(location->config);
+            char temppath[PATH_MAX];
+            snprintf(temppath, PATH_MAX, "%s%s", path, index);
+            if (index) { /* If default index defined */
+                /* Check it out */
+                if (stat(temppath, &statbuf) < 0) {
+                    console_log(LOG_DBG, cs->addrstr, "Error stating: ",
+                        strerror(errno));
+                    sendisfile = 0;
+                }
+                /* It exists and its readable */
+                strlcat(path, index, PATH_MAX);
+                strlcat(logbuff, index, 1024);
+                sendisfile = 1;
+            } else sendisfile = 0;
+        }
+
+        if (sendisfile) {
+            /* Open file */
+            FILE *file = fopen(path, "rb");
+            if (file) {
+                strlcat(logbuff, " 200 OK", 1024);
+                send200(cs, NULL);
+                sendfile(cs, file, statbuf.st_size);
+            } else {
+                console_log(LOG_ERR, cs->addrstr, "Error fopening: ",
+                    strerror(errno));
+                send503(cs);
+                strlcat(logbuff, " 503 Service Unavailable", 1024);
+            }
+        } else if (config_find_autoindex(location->config)) {
+            /* If dir and autoindex enabled */
             strlcat(logbuff, " 200 OK", 1024);
+            send200(cs, NULL);
+            sendautoindex(cs, path);
         } else {
-            send404(cs);
-            strlcat(logbuff, " 404 Not Found", 1024);
+            strlcat(logbuff, " 403 Forbidden", 1024);
+            send403(cs);
         }
+
     } else {
-        snprintf(sendbuff, BUFF_SIZE, "HTTP/1.1 501 Not Implemented\n\n");
-        convertcrlf(sendbuff, BUFF_SIZE);
-        if (send(cs->fd, sendbuff, strlen(sendbuff), 0) < 0) {
-            console_log(LOG_ERR, cs->addrstr, "Error sending", NULL);
-        }
+        strlcat(logbuff, " 501 Not Implemented", 1024);
+        send501(cs);
     }
 
+    doclose:
     close(cs->fd);
 
     console_log(LOG_INFO, cs->addrstr, logbuff, NULL);

@@ -182,6 +182,11 @@ config_parse(const char *config) {
             strncat(path, value, value_length);
             config_list_push(&location_current->config, CONFIG_ROOT, path, NULL);
         }
+        else if (substrchk(key, "index ")) { /* Default index file */
+            char file[1024]; file[0] = '\0';
+            strncat(file, value, value_length);
+            config_list_push(&location_current->config, CONFIG_INDEX, file, NULL);
+        }
         else if (substrchk(key, "autoindex")) { /* No parameters, enable */
             config_list_push(&location_current->config, CONFIG_AUTOINDEX,
                 NULL, NULL);
