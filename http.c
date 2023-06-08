@@ -96,7 +96,7 @@ send404(const client_t *cs) {
 
 location_node_t *
 location_find(location_node_t **head, const char *endpoint) {
-    if (head) return NULL;
+    if (!head) return NULL;
     location_node_t *location_current = location_list, *location_best = NULL;
     int bestn = 0;
     while (location_current) {
@@ -149,7 +149,13 @@ http_process(const client_t *cs, const char *buff, size_t len) {
     /* Handle methods */
     if (strncmp(buff, "GET", 3) == 0) {
         location_node_t *location = location_find(&location_list, endpoint);
-        if (!location) send404(cs);
+        if (!location) {
+            send404(cs);
+            close(cs->fd);
+            strlcat(logbuff, " -> 404 (no location)", 1024);
+            console_log(LOG_INFO, cs->addrstr, logbuff, NULL);
+            return;
+        }
 
         const char *webroot = config_find_root(location->config);
 
@@ -165,14 +171,20 @@ http_process(const client_t *cs, const char *buff, size_t len) {
             convertcrlf(sendbuff, BUFF_SIZE);
             int headerend = strlen(sendbuff);
             fread(sendbuff + headerend, 1, BUFF_SIZE - headerend, file);
-            send(cs->fd, sendbuff, strlen(sendbuff), 0);
+            if (send(cs->fd, sendbuff, strlen(sendbuff), 0) < 0) {
+                console_log(LOG_ERR, cs->addrstr, "Error sending", NULL);
+            }
+            strlcat(logbuff, " 200 OK", 1024);
         } else {
             send404(cs);
+            strlcat(logbuff, " 404 Not Found", 1024);
         }
     } else {
         snprintf(sendbuff, BUFF_SIZE, "HTTP/1.1 501 Not Implemented\n\n");
         convertcrlf(sendbuff, BUFF_SIZE);
-        send(cs->fd, sendbuff, strlen(sendbuff), 0);
+        if (send(cs->fd, sendbuff, strlen(sendbuff), 0) < 0) {
+            console_log(LOG_ERR, cs->addrstr, "Error sending", NULL);
+        }
     }
 
     close(cs->fd);

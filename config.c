@@ -32,7 +32,8 @@ const char *config_type_strs[] = {
     "webroot",
     "header",
     "mime",
-    "index"
+    "index",
+    "autoindex"
 };
 
 /* Config */
@@ -154,16 +155,15 @@ config_parse(const char *config) {
             continue;
         }
         value = find_value(key);
-        if (!value) { /* Ignore missing values */
-            ptr = strchr(ptr, '\n');
-            continue;
-        }
-        value_end = strchr(value, '\n');
-        value_length = value_end - value;
+        if (value) {
+            value_end = strchr(value, '\n');
+            value_length = value_end - value;
+        } else value_end = strchr(key, '\n');
+
 
         /* Valid keys */
         /* Context-less */
-        if (substrchk(key, "listen ")) {
+        if (substrchk(key, "listen ")) { /* address/port */
             string_list_push(&listen_list, value, value_length);
         }
         else if (substrchk(key, "location ")) {
@@ -177,10 +177,14 @@ config_parse(const char *config) {
             }
         }
         /* Location context */
-        else if (substrchk(key, "webroot ")) {
+        else if (substrchk(key, "webroot ")) { /* Root of location in fs */
             char path[1024]; path[0] = '\0';
             strncat(path, value, value_length);
             config_list_push(&location_current->config, CONFIG_ROOT, path, NULL);
+        }
+        else if (substrchk(key, "autoindex")) { /* No parameters, enable */
+            config_list_push(&location_current->config, CONFIG_AUTOINDEX,
+                NULL, NULL);
         }
         
         else {

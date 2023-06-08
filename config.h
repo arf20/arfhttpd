@@ -43,10 +43,11 @@ typedef struct fd_thread_node_s {
 
 /* Webserver config types */
 typedef enum {
-    CONFIG_ROOT,    /* Real path root */
-    CONFIG_HEADER,  /* Defines header */
-    CONFIG_MIME,    /* Enables MIME type header */
-    CONFIG_INDEX    /* Default index file */
+    CONFIG_ROOT,      /* Real path root */
+    CONFIG_HEADER,    /* Defines header */
+    CONFIG_MIME,      /* Enables MIME type header */
+    CONFIG_INDEX,     /* Default index file */
+    CONFIG_AUTOINDEX  /* Enable autoindex */
 } config_type_t;
 
 extern const char *config_type_strs[];
