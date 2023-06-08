@@ -50,6 +50,11 @@ char endpoint[1024];
 "<!DOCTYPE html>\n" \
 "<html>\n" \
 "  <head>\n" \
+"    <style>\n" \
+"    table, th, td {\n" \
+"      border: 1px solid;\n" \
+"    }\n" \
+"    </style>\n" \
 "  </head>\n" \
 "  <body>\n" \
 "    <h1>Index Of %s</h1>\n" \
@@ -165,7 +170,7 @@ sendfile(const client_t *cs, FILE *file, size_t size) {
     while (size) {
         nread = fread(sendbuff, 1, BUFF_SIZE, file);
 
-        if (send(cs->fd, sendbuff, BUFF_SIZE, 0) < 0) {
+        if (send(cs->fd, sendbuff, nread, 0) < 0) {
             console_log(LOG_ERR, cs->addrstr, "Error sending: ",
                 strerror(errno));
         }
@@ -200,7 +205,8 @@ sendautoindex(const client_t *cs, DIR *dir, const char *path,
         strlcat(sendbuff, tempbuff, BUFF_SIZE);
         strlcat(sendbuff, "</td>\n<td>", BUFF_SIZE);
         strlcat(sendbuff, "</td>\n<td>", BUFF_SIZE);
-        snprintf(tempbuff, PATH_MAX, "%d", statbuf.st_mtime);
+        struct tm *lt = localtime(&statbuf.st_mtime);
+        strftime(tempbuff, PATH_MAX, "%Y-%b-%d %H:%M", lt);
         strlcat(sendbuff, tempbuff, BUFF_SIZE);
         strlcat(sendbuff, "</td>\n</tr>", BUFF_SIZE);
     }
@@ -290,14 +296,14 @@ http_process(const client_t *cs, const char *buff, size_t len) {
     if (strncmp(buff, "GET", 3) == 0) {
         location_node_t *location = location_find(&location_list, endpoint);
         if (!location) {
-            strlcat(logbuff, " -> 404 (no location)", 1024);
+            strlcat(logbuff, " -> 404 Not Found (no location)", 1024);
             send404(cs);
             goto doclose;
         }
 
         const char *webroot = config_find_root(location->config);
         if (!webroot) {
-            strlcat(logbuff, " -> 503 (no webroot)", 1024);
+            strlcat(logbuff, " -> 503 Service Unavailable (no webroot)", 1024);
             send503(cs);
             goto doclose;
         }
@@ -314,10 +320,13 @@ http_process(const client_t *cs, const char *buff, size_t len) {
         if (stat(path, &statbuf) < 0) {
             if (errno == EACCES) {
                 send403(cs);
+                strlcat(logbuff, " 403 Forbidden", 1024);
             } else if (errno == ENOENT) {
                 send404(cs);
+                strlcat(logbuff, " 404 Not Found", 1024);
             } else {
                 send503(cs);
+                strlcat(logbuff, " 503 Service Unavailable", 1024);
             }
             console_log(LOG_DBG, cs->addrstr, "Error stating: ",
                 strerror(errno));
