@@ -23,6 +23,7 @@
 #include "strutils.h"
 
 #include <string.h>
+#include <stdio.h>
 
 size_t /* from BSD */
 strlcat(char *dst, const char *src, size_t dstsize) {
@@ -66,4 +67,17 @@ stralloccpy(const char *start, size_t length) {
     if (!start) return NULL;
     char *str = malloc(length);
     strncpy(str, start, length);
+}
+
+char *
+human_size(int isize, char *buf, size_t buflen) {
+    int i = 0;
+    float size = isize;
+    const char *units[] = {"B", "KiB", "MiB", "GiB", "TiB"};
+    while (size > 1024.0f) {
+        size /= 1024.0f;
+        i++;
+    }
+    snprintf(buf, buflen, "%.*f %s", i, size, units[i]);
+    return buf;
 }

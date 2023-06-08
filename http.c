@@ -31,6 +31,7 @@
 
 #include <linux/limits.h>
 #include <sys/stat.h>
+#include <dirent.h>
 #include <errno.h>
 
 #include "config.h"
@@ -43,6 +44,30 @@
 char sendbuff[BUFF_SIZE];
 char logbuff[1024];
 char endpoint[1024];
+
+
+#define AUTOINDEX_INTRO \
+"<!DOCTYPE html>\n" \
+"<html>\n" \
+"  <head>\n" \
+"  </head>\n" \
+"  <body>\n" \
+"    <h1>Index Of %s</h1>\n" \
+"    <hr>\n" \
+"    <table>\n" \
+"      <tr>\n" \
+"        <th>Name</th>\n" \
+"        <th>Size</th>\n" \
+"        <th>Type</th>\n" \
+"        <th>Date</th>\n" \
+"      </tr>\n"
+
+#define AUTOINDEX_OUTRO \
+"    </table>\n" \
+"  </body>\n" \
+"</html>\n"
+
+
 
 int
 strlencrlf(const char *str) {
@@ -88,6 +113,7 @@ find_field(const char *str) {
 }
 
 
+/* Status */
 void
 send404(const client_t *cs) {
     snprintf(sendbuff, BUFF_SIZE, "HTTP/1.1 404 Not Found\n\n");
@@ -139,7 +165,7 @@ sendfile(const client_t *cs, FILE *file, size_t size) {
     while (size) {
         nread = fread(sendbuff, 1, BUFF_SIZE, file);
 
-        if (send(cs->fd, sendbuff, strlen(sendbuff), 0) < 0) {
+        if (send(cs->fd, sendbuff, BUFF_SIZE, 0) < 0) {
             console_log(LOG_ERR, cs->addrstr, "Error sending: ",
                 strerror(errno));
         }
@@ -149,8 +175,41 @@ sendfile(const client_t *cs, FILE *file, size_t size) {
 }
 
 void
-sendautoindex(const client_t *cs, const char *path) {
-    send(cs->fd, "le index", 9, 0);
+sendautoindex(const client_t *cs, DIR *dir, const char *path,
+    const char *endpoint)
+{
+    snprintf(sendbuff, BUFF_SIZE, AUTOINDEX_INTRO, endpoint);
+    struct dirent *direntry;
+    struct stat statbuf;
+    char tempbuff[PATH_MAX];
+
+    while ((direntry = readdir(dir)) != NULL) {
+        if (strcmp(direntry->d_name, ".") == 0) continue;
+        strlcat(sendbuff, "<tr>\n<td>", BUFF_SIZE);
+        strlcat(sendbuff, direntry->d_name, BUFF_SIZE);
+        strlcat(sendbuff, "</td>\n<td>", BUFF_SIZE);
+
+        snprintf(tempbuff, PATH_MAX, "%s%s", path, direntry->d_name);
+        if (stat(tempbuff, &statbuf) < 0) {
+            console_log(LOG_DBG, tempbuff, "Error stating: ",
+                strerror(errno));
+            tempbuff[0] = '\0';
+        } else {
+            human_size(statbuf.st_size, tempbuff, PATH_MAX);
+        }
+        strlcat(sendbuff, tempbuff, BUFF_SIZE);
+        strlcat(sendbuff, "</td>\n<td>", BUFF_SIZE);
+        strlcat(sendbuff, "</td>\n<td>", BUFF_SIZE);
+        snprintf(tempbuff, PATH_MAX, "%d", statbuf.st_mtime);
+        strlcat(sendbuff, tempbuff, BUFF_SIZE);
+        strlcat(sendbuff, "</td>\n</tr>", BUFF_SIZE);
+    }
+    strlcat(sendbuff, AUTOINDEX_OUTRO, BUFF_SIZE);
+
+    if (send(cs->fd, sendbuff, strlen(sendbuff), 0) < 0) {
+        console_log(LOG_ERR, cs->addrstr, "Error sending: ",
+            strerror(errno));
+    }
 }
 
 
@@ -294,6 +353,7 @@ http_process(const client_t *cs, const char *buff, size_t len) {
                 strlcat(logbuff, " 200 OK", 1024);
                 send200(cs, NULL);
                 sendfile(cs, file, statbuf.st_size);
+                fclose(file);
             } else {
                 console_log(LOG_ERR, cs->addrstr, "Error fopening: ",
                     strerror(errno));
@@ -302,9 +362,18 @@ http_process(const client_t *cs, const char *buff, size_t len) {
             }
         } else if (config_find_autoindex(location->config)) {
             /* If dir and autoindex enabled */
-            strlcat(logbuff, " 200 OK", 1024);
-            send200(cs, NULL);
-            sendautoindex(cs, path);
+            DIR *dir = opendir(path);
+            if (dir) {
+                strlcat(logbuff, " 200 OK", 1024);
+                send200(cs, NULL);
+                sendautoindex(cs, dir, path, endpoint);
+                closedir(dir);
+            } else {
+                console_log(LOG_ERR, cs->addrstr, "Error opendiring: ",
+                    strerror(errno));
+                send503(cs);
+                strlcat(logbuff, " 503 Service Unavailable", 1024);
+            }
         } else {
             strlcat(logbuff, " 403 Forbidden", 1024);
             send403(cs);
