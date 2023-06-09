@@ -34,6 +34,8 @@
 #include <dirent.h>
 #include <errno.h>
 
+#include <magic.h>
+
 #include "config.h"
 #include "strutils.h"
 #include "log.h"
@@ -45,6 +47,7 @@ char sendbuff[BUFF_SIZE];
 char logbuff[1024];
 char endpoint[1024];
 
+static magic_t magic_cookie = NULL;
 
 #define AUTOINDEX_INTRO \
 "<!DOCTYPE html>\n" \
@@ -118,6 +121,28 @@ find_field(const char *str) {
 }
 
 
+const char *
+get_mime_type(const char *path) {
+    if (!magic_cookie) {
+        magic_cookie = magic_open(MAGIC_MIME_TYPE);
+        if (!magic_cookie) {
+            console_log(LOG_ERR, NULL, "Error magic_opening: ",
+                strerror(errno));
+            return NULL;
+        }
+        if (magic_load(magic_cookie, NULL) < 0) {
+            console_log(LOG_ERR, NULL, "Error magic_loading: ",
+                magic_error(magic_cookie));
+            magic_close(magic_cookie);
+            return NULL;
+        }
+    }
+    
+    const char *mimestr = magic_file(magic_cookie, path);
+    return mimestr;
+}
+
+
 /* Status */
 void
 send404(const client_t *cs) {
@@ -186,25 +211,40 @@ sendautoindex(const client_t *cs, DIR *dir, const char *path,
     snprintf(sendbuff, BUFF_SIZE, AUTOINDEX_INTRO, endpoint);
     struct dirent *direntry;
     struct stat statbuf;
-    char tempbuff[PATH_MAX];
+    char filepath[PATH_MAX];
+    char tempbuff[256];
 
     while ((direntry = readdir(dir)) != NULL) {
         if (strcmp(direntry->d_name, ".") == 0) continue;
-        strlcat(sendbuff, "<tr>\n<td>", BUFF_SIZE);
+        strlcat(sendbuff, "<tr>\n<td><a href=\"", BUFF_SIZE);
+        /* href */
+        strlcat(sendbuff, endpoint, BUFF_SIZE);
+        if (endpoint[strlen(endpoint) - 1] != '/')
+            strlcat(sendbuff, "/", BUFF_SIZE);
         strlcat(sendbuff, direntry->d_name, BUFF_SIZE);
-        strlcat(sendbuff, "</td>\n<td>", BUFF_SIZE);
+        strlcat(sendbuff, "\">", BUFF_SIZE);
 
-        snprintf(tempbuff, PATH_MAX, "%s%s", path, direntry->d_name);
-        if (stat(tempbuff, &statbuf) < 0) {
-            console_log(LOG_DBG, tempbuff, "Error stating: ",
+        /* Name */
+        strlcat(sendbuff, direntry->d_name, BUFF_SIZE);
+        strlcat(sendbuff, "</a></td>\n<td>", BUFF_SIZE);
+
+        /* Size */
+        snprintf(filepath, PATH_MAX, "%s/%s", path, direntry->d_name);
+        if (stat(filepath, &statbuf) < 0) {
+            console_log(LOG_DBG, filepath, "Error stating: ",
                 strerror(errno));
             tempbuff[0] = '\0';
         } else {
             human_size(statbuf.st_size, tempbuff, PATH_MAX);
+            strlcat(sendbuff, tempbuff, BUFF_SIZE);
         }
-        strlcat(sendbuff, tempbuff, BUFF_SIZE);
         strlcat(sendbuff, "</td>\n<td>", BUFF_SIZE);
+
+        /* Type */
+        strlcat(sendbuff, get_mime_type(filepath), BUFF_SIZE);
         strlcat(sendbuff, "</td>\n<td>", BUFF_SIZE);
+        
+        /* Date */
         struct tm *lt = localtime(&statbuf.st_mtime);
         strftime(tempbuff, PATH_MAX, "%Y-%b-%d %H:%M", lt);
         strlcat(sendbuff, tempbuff, BUFF_SIZE);

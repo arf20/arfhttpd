@@ -16,4 +16,4 @@ file (GLOB SRC
 
 add_executable(arfhttpd ${SRC})
 
-target_link_libraries(arfhttpd Threads::Threads)
+target_link_libraries(arfhttpd Threads::Threads magic)
