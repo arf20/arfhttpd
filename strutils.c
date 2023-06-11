@@ -81,3 +81,10 @@ human_size(int isize, char *buf, size_t buflen) {
     snprintf(buf, buflen, "%.*f %s", i, size, units[i]);
     return buf;
 }
+
+const char *
+strnchr(const char *str, size_t n, char chr) {
+    for (int i = 0; i < n; i++)
+        if (str[i] == chr) return str + i;
+    return NULL;
+}

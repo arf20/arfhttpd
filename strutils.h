@@ -27,5 +27,6 @@ size_t strlcat(char *dst, const char *src, size_t dstsize);
 void strsub(char *dest, size_t destsize, const char *src, size_t n);
 char *stralloccpy(const char *start, size_t length);
 char *human_size(int size, char *buf, size_t buflen);
+const char *strnchr(const char *str, size_t n, char chr);
 
 #endif

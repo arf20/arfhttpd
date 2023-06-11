@@ -109,7 +109,7 @@ config_list_push(config_node_t **head, config_type_t type,
     if (p1)
         new->param1 = stralloccpy(p1, strlen(p1));
     if (p2)
-        new->param1 = stralloccpy(p2, strlen(p2));
+        new->param2 = stralloccpy(p2, strlen(p2));
     return new;
 }
 
@@ -129,7 +129,11 @@ findalnum(const char *str) {
 
 const char *
 find_value(const char *key) {
-    const char *v = strchr(key, ' ');
+    size_t n = 0;
+    const char *nl = strchr(key, '\n');
+    if (nl) n = nl - key; else n = strlen(key);
+    const char *v = strnchr(key, n, ' ');
+    if (!v) return NULL;
     return findalnum(v);
 }
 
@@ -148,6 +152,10 @@ config_parse(const char *config) {
     int line = 0;
     const char *ptr = config, *key, *value, *value_end;
     size_t value_length;
+    char p1[1024];
+    char p2[1024];
+    int argc = 0;
+
     while (ptr && *ptr && ptr < ptr + config_length) {
         key = findalnum(ptr);
         if (!key) { /* Ignore empty lines */
@@ -155,10 +163,30 @@ config_parse(const char *config) {
             continue;
         }
         value = find_value(key);
-        if (value) {
+        if (value) 
             value_end = strchr(value, '\n');
-            value_length = value_end - value;
-        } else value_end = strchr(key, '\n');
+        else
+            value_end = strchr(key, '\n');
+        value_length = value_end - value;
+
+        /* Extract arguments */
+        argc = 0;
+        if (value) {
+            argc++;
+            const char* separator = strnchr(value, value_length, ' ');
+            if (separator) {
+                size_t p1len = separator - value;
+                strncpy(p1, value, p1len);
+                p1[p1len] = '\0';
+                size_t p2len = value_end - (separator + 1);
+                strncpy(p2, separator + 1, p2len);
+                p2[p2len] = '\0';
+                argc++;
+            } else {
+                strncpy(p1, value, value_length);
+                p1[value_length] = '\0';
+            }
+        }
 
 
         /* Valid keys */
@@ -190,6 +218,14 @@ config_parse(const char *config) {
         else if (substrchk(key, "autoindex")) { /* No parameters, enable */
             config_list_push(&location_current->config, CONFIG_AUTOINDEX,
                 NULL, NULL);
+        }
+        else if (substrchk(key, "header ")) { /* Header and value */
+            if (argc != 2) {
+                printf("Error: Wrong amount of arguments, line %d\n", line);
+            }
+            
+            config_list_push(&location_current->config, CONFIG_HEADER,
+                p1, p2);
         }
         
         else {

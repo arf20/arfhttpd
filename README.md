@@ -10,5 +10,6 @@ make
 ```
 
 ## Configuration
-Procedural-ish state machine thing ini-like without = arbitrary indentation
+Procedural-ish state machine thing ini-like without = and arbitrary indentation
+
 Sample at arfhttpd.conf
