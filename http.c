@@ -315,6 +315,16 @@ config_find_autoindex(config_node_t *head) {
     return 0;
 }
 
+int
+config_find_mimeheader(config_node_t *head) {
+    while (head) {
+        if (head->type == CONFIG_MIMEHEADER)
+            return 1;
+        head = head->next;
+    }
+    return 0;
+}
+
 void
 http_process(const client_t *cs, const char *buff, size_t len) {
     const char *endpoint_ptr = find_field(buff);
@@ -369,7 +379,7 @@ http_process(const client_t *cs, const char *buff, size_t len) {
             }
             config_current = config_current->next;
         }
-
+        int mimeenabled = config_find_mimeheader(location->config);
 
         /* Checkout file */
         struct stat statbuf;
@@ -416,6 +426,11 @@ http_process(const client_t *cs, const char *buff, size_t len) {
             FILE *file = fopen(path, "rb");
             if (file) {
                 strlcat(logbuff, " 200 OK", 1024);
+                if (mimeenabled) {
+                    strlcat(headers, "Content-Type: ", 65535);
+                    strlcat(headers, get_mime_type(path), 65535);
+                    strlcat(headers, "\n", 65535);
+                }
                 send200(cs, headers);
                 sendfile(cs, file, statbuf.st_size);
                 fclose(file);
@@ -430,6 +445,8 @@ http_process(const client_t *cs, const char *buff, size_t len) {
             DIR *dir = opendir(path);
             if (dir) {
                 strlcat(logbuff, " 200 OK", 1024);
+                if (mimeenabled)
+                    strlcat(headers, "Content-Type: text/html\n", 65535);
                 send200(cs, headers);
                 sendautoindex(cs, dir, path, endpoint);
                 closedir(dir);

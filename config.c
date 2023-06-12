@@ -31,7 +31,7 @@
 const char *config_type_strs[] = {
     "webroot",
     "header",
-    "mime",
+    "mimeheader",
     "index",
     "autoindex"
 };
@@ -228,6 +228,10 @@ config_parse(const char *config) {
         }
         else if (substrchk(key, "autoindex")) { /* No parameters, enable */
             config_list_push(&location_current->config, CONFIG_AUTOINDEX,
+                NULL, NULL);
+        }
+        else if (substrchk(key, "mimeheader")) { /* No parameters, enable */
+            config_list_push(&location_current->config, CONFIG_MIMEHEADER,
                 NULL, NULL);
         }
         else if (substrchk(key, "header ")) { /* Header and value */

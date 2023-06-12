@@ -45,7 +45,7 @@ typedef struct fd_thread_node_s {
 typedef enum {
     CONFIG_ROOT,      /* Real path root */
     CONFIG_HEADER,    /* Defines header */
-    CONFIG_MIME,      /* Enables MIME type header */
+    CONFIG_MIMEHEADER,      /* Enables MIME type header */
     CONFIG_INDEX,     /* Default index file */
     CONFIG_AUTOINDEX  /* Enable autoindex */
 } config_type_t;
