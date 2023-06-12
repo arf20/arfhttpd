@@ -182,7 +182,10 @@ send503(const client_t *cs) {
 
 void
 send200(const client_t *cs, const char *headers) {
-    snprintf(sendbuff, BUFF_SIZE, "HTTP/1.1 200 OK\n\n");
+    snprintf(sendbuff, BUFF_SIZE, "HTTP/1.1 200 OK\n");
+    if (headers)
+        strlcat(sendbuff, headers, BUFF_SIZE);
+    strlcat(sendbuff, "\n", BUFF_SIZE);
     convertcrlf(sendbuff, BUFF_SIZE);
     if (send(cs->fd, sendbuff, strlen(sendbuff), 0) < 0) {
         console_log(LOG_ERR, cs->addrstr, "Error sending: ", strerror(errno));
@@ -354,6 +357,19 @@ http_process(const client_t *cs, const char *buff, size_t len) {
         strlcat(logbuff, " -> ", 1024);
         strlcat(logbuff, path, 1024);
 
+        /* Make headers */
+        char headers[65535]; headers[0] = '\0';
+        config_node_t *config_current = location->config;
+        while (config_current) {
+            if (config_current->type == CONFIG_HEADER) {
+                strlcat(headers, config_current->param1, 65535);
+                strlcat(headers, ": ", 65535);
+                strlcat(headers, config_current->param2, 65535);
+                strlcat(headers, "\n", 65535);
+            }
+            config_current = config_current->next;
+        }
+
 
         /* Checkout file */
         struct stat statbuf;
@@ -400,7 +416,7 @@ http_process(const client_t *cs, const char *buff, size_t len) {
             FILE *file = fopen(path, "rb");
             if (file) {
                 strlcat(logbuff, " 200 OK", 1024);
-                send200(cs, NULL);
+                send200(cs, headers);
                 sendfile(cs, file, statbuf.st_size);
                 fclose(file);
             } else {
@@ -414,7 +430,7 @@ http_process(const client_t *cs, const char *buff, size_t len) {
             DIR *dir = opendir(path);
             if (dir) {
                 strlcat(logbuff, " 200 OK", 1024);
-                send200(cs, NULL);
+                send200(cs, headers);
                 sendautoindex(cs, dir, path, endpoint);
                 closedir(dir);
             } else {

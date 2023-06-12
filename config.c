@@ -192,28 +192,39 @@ config_parse(const char *config) {
         /* Valid keys */
         /* Context-less */
         if (substrchk(key, "listen ")) { /* address/port */
+            if (argc != 1) {
+                printf("Error: Wrong amount of arguments, line %d\n", line);
+                continue;
+            }
             string_list_push(&listen_list, value, value_length);
         }
         else if (substrchk(key, "location ")) {
-            char loc[1024]; loc[0] = '\0';
-            strncat(loc, value, value_length);
-            if (location_list_find(location_list, loc)) {
+            if (argc != 1) {
+                printf("Error: Wrong amount of arguments, line %d\n", line);
+                continue;
+            }
+
+            if (location_list_find(location_list, p1)) {
                 printf("Warning: Duplicated location, line %d\n", line);
             } else {
                 location_current = location_list_push(&location_list,
-                    loc, strlen(loc));
+                    p1, strlen(p1));
             }
         }
         /* Location context */
         else if (substrchk(key, "webroot ")) { /* Root of location in fs */
-            char path[1024]; path[0] = '\0';
-            strncat(path, value, value_length);
-            config_list_push(&location_current->config, CONFIG_ROOT, path, NULL);
+            if (argc != 1) {
+                printf("Error: Wrong amount of arguments, line %d\n", line);
+                continue;
+            }
+            config_list_push(&location_current->config, CONFIG_ROOT, p1, NULL);
         }
         else if (substrchk(key, "index ")) { /* Default index file */
-            char file[1024]; file[0] = '\0';
-            strncat(file, value, value_length);
-            config_list_push(&location_current->config, CONFIG_INDEX, file, NULL);
+            if (argc != 1) {
+                printf("Error: Wrong amount of arguments, line %d\n", line);
+                continue;
+            }
+            config_list_push(&location_current->config, CONFIG_INDEX, p1, NULL);
         }
         else if (substrchk(key, "autoindex")) { /* No parameters, enable */
             config_list_push(&location_current->config, CONFIG_AUTOINDEX,
@@ -222,6 +233,7 @@ config_parse(const char *config) {
         else if (substrchk(key, "header ")) { /* Header and value */
             if (argc != 2) {
                 printf("Error: Wrong amount of arguments, line %d\n", line);
+                continue;
             }
             
             config_list_push(&location_current->config, CONFIG_HEADER,
