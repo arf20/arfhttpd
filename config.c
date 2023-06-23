@@ -1,6 +1,6 @@
 /*
 
-    arfhttpd: Cross-plataform multi-frontend game
+    arfhttpd: Yet another HTTP server
     Copyright (C) 2023 arf20 (Ángel Ruiz Fernandez)
 
     This program is free software: you can redistribute it and/or modify
