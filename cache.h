@@ -18,15 +18,18 @@
 
 */
 
-#ifndef _HTTP_H
-#define _HTTP_H
+#ifndef _CACHE_H
+#define _CACHE_H
 
-/* Structs */
-typedef struct {
-    int fd;
-    const char *addrstr;
-} client_t;
+#include <stdio.h>
+#include <sys/stat.h>
 
-void http_process(const client_t *cs, const char *buff, size_t len);
+#define CACHE_SIZE  65536
+
+void cache_init();
+int cached_stat(const char *file, struct stat *buf);
+FILE *cached_fopen(const char *filename, const char *modes);
+size_t cached_fread(void *ptr, size_t size, size_t n, FILE *stream);
+int cached_fclose(FILE *stream);
 
 #endif

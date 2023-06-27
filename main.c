@@ -29,6 +29,7 @@
 
 #include "config.h"
 #include "socket.h"
+#include "cache.h"
 
 int
 file_read(const char *path, char **buff) {
@@ -56,7 +57,7 @@ main(int argc, char **argv) {
 
     config_parse(config);
 
-    /* Print location config */
+    /* Print config */
     location_node_t *location_current = location_list;
     while (location_current) {
         printf("location %s\n", location_current->location);
@@ -72,6 +73,8 @@ main(int argc, char **argv) {
 
         location_current = location_current->next;
     }
+
+    cache_init();
 
     /* Start accept threads */
     server_start(listen_list);

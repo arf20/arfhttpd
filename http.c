@@ -39,6 +39,7 @@
 #include "config.h"
 #include "strutils.h"
 #include "log.h"
+#include "cache.h"
 
 #include "http.h"
 
@@ -233,7 +234,7 @@ sendautoindex(const client_t *cs, DIR *dir, const char *path,
 
         /* Size */
         snprintf(filepath, PATH_MAX, "%s/%s", path, direntry->d_name);
-        if (stat(filepath, &statbuf) < 0) {
+        if (cached_stat(filepath, &statbuf) < 0) {
             console_log(LOG_DBG, filepath, "Error stating: ",
                 strerror(errno));
             tempbuff[0] = '\0';
@@ -383,7 +384,7 @@ http_process(const client_t *cs, const char *buff, size_t len) {
 
         /* Checkout file */
         struct stat statbuf;
-        if (stat(path, &statbuf) < 0) {
+        if (cached_stat(path, &statbuf) < 0) {
             if (errno == EACCES) {
                 send403(cs);
                 strlcat(logbuff, " 403 Forbidden", 1024);
@@ -409,7 +410,7 @@ http_process(const client_t *cs, const char *buff, size_t len) {
             snprintf(temppath, PATH_MAX, "%s%s", path, index);
             if (index) { /* If default index defined */
                 /* Check it out */
-                if (stat(temppath, &statbuf) < 0) {
+                if (cached_stat(temppath, &statbuf) < 0) {
                     console_log(LOG_DBG, cs->addrstr, "Error stating: ",
                         strerror(errno));
                     sendisfile = 0;
