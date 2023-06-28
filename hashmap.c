@@ -97,25 +97,25 @@ new:
 
 void
 hashtable_ninsert(hashtable_t *ht, const char *key, 
-                       int key_len, nodedata_t value) {
+                       int key_len, htdata_t value) {
     
     hashtable_node_t *n = hashtable_nfind(ht, key, key_len);
     n->data = value;
 }
 
 void
-hashtable_insert(hashtable_t *ht, const char *key, nodedata_t value) {
+hashtable_insert(hashtable_t *ht, const char *key, htdata_t value) {
     hashtable_ninsert(ht, key, strlen(key), value);
 }
 
-nodedata_t *
+htdata_t *
 hashtable_nget(hashtable_t *ht, const char *key, int key_len) {
     hashtable_node_t *n = hashtable_rnfind(ht, key, key_len);
     if (n == NULL) return NULL;
     return &n->data;
 }
 
-nodedata_t *
+htdata_t *
 hashtable_get(hashtable_t *ht, const char *key) {
     return hashtable_nget(ht, key, strlen(key));
 }
