@@ -44,6 +44,17 @@
 #include "http.h"
 
 
+#define USE_CACHE
+
+#ifndef USE_CACHE
+#  define CACHED_FILE       FILE  
+#  define cached_stat       stat  
+#  define cached_fopen      fopen 
+#  define cached_fread      fread 
+#  define cached_fclose     fclose
+#endif
+
+
 char sendbuff[BUFF_SIZE];
 char logbuff[1024];
 char endpoint[1024];
@@ -194,7 +205,7 @@ send200(const client_t *cs, const char *headers) {
 }
 
 void
-sendfile(const client_t *cs, FILE *file, size_t size) {
+sendfile(const client_t *cs, CACHED_FILE *file, size_t size) {
     size_t nread = 0;
     while (size) {
         nread = cached_fread(sendbuff, 1, BUFF_SIZE, file);
@@ -424,7 +435,7 @@ http_process(const client_t *cs, const char *buff, size_t len) {
 
         if (sendisfile) {
             /* Open file */
-            FILE *file = cached_fopen(path, "rb");
+            CACHED_FILE *file = cached_fopen(path, "rb");
             if (file) {
                 strlcat(logbuff, " 200 OK", 1024);
                 if (mimeenabled) {

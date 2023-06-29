@@ -46,7 +46,7 @@ void console_log(int severity, const char *client, const char *msg,
     int aftertime = strftime(logbuff + 1, LOG_BUFFER_SIZE - 1,
         "%d/%m/%Y:%H:%M:", tm_local);
     snprintf(logbuff + 1 + aftertime, LOG_BUFFER_SIZE - 1 - aftertime, 
-        "%05.2f] ", sec);
+        "%06.5f] ", sec);
 
     switch (severity) {
         case LOG_ERR:  strlcat(logbuff, "ERROR:",   LOG_BUFFER_SIZE); break;

@@ -38,7 +38,7 @@ static hashtable_t file_cache;
 
 /* Open file list */
 typedef struct openfile_node_s {
-    FILE *stream;
+    CACHED_FILE *stream;
     htdata_t *cache_entry;
     struct openfile_node_s *prev;
     struct openfile_node_s *next;
@@ -47,7 +47,7 @@ typedef struct openfile_node_s {
 static openfile_node_t *openfile_list = NULL;
 
 openfile_node_t *
-openfile_list_push(openfile_node_t **head, FILE *stream, htdata_t *cache_entry) {
+openfile_list_push(openfile_node_t **head, CACHED_FILE *stream, htdata_t *cache_entry) {
     if (!head) return NULL;
     openfile_node_t *end = NULL;
     openfile_node_t *new = malloc(sizeof(openfile_node_t));
@@ -67,7 +67,7 @@ openfile_list_push(openfile_node_t **head, FILE *stream, htdata_t *cache_entry) 
 }
 
 openfile_node_t *
-openfile_list_find(openfile_node_t *head, const FILE *stream) {
+openfile_list_find(openfile_node_t *head, const CACHED_FILE *stream) {
     if (!head) return NULL;
     openfile_node_t *ptr = head;
     while (ptr) {
@@ -78,7 +78,7 @@ openfile_list_find(openfile_node_t *head, const FILE *stream) {
 }
 
 void
-openfile_list_remove(openfile_node_t **head, const FILE *stream) {
+openfile_list_remove(openfile_node_t **head, const CACHED_FILE *stream) {
     if (!head) return;
     openfile_node_t *elem = openfile_list_find(*head, stream);
     
@@ -148,20 +148,23 @@ cached_stat(const char *file, struct stat *buf) {
     }
 }
 
-FILE *
+CACHED_FILE *
 cached_fopen(const char *filename, const char *modes) {
     if (!filename || !modes) return NULL;
     htdata_t *cache_entry = hashtable_get(&file_cache, filename);
     if (cache_entry && IS_CACHED_CONTENT(cache_entry->flags)) {
         /* Cache hit - create our own virtual FILE stream */
-        FILE *f = malloc(sizeof(FILE));
-        memset(f, 0, sizeof(FILE));
+        CACHED_FILE *f = malloc(sizeof(CACHED_FILE));
+        f->actual_stream = NULL;
+        f->_offset = 0;
         openfile_list_push(&openfile_list, f, cache_entry);
         console_log(LOG_DBG, "\t", "fopen cache hit ", filename);
         return f;
     } else {
         /* Cache miss - passthrough */
-        FILE *f = fopen(filename, modes);
+        CACHED_FILE *f = malloc(sizeof(CACHED_FILE));
+        f->_offset = 0;
+        f->actual_stream = fopen(filename, modes);
         if (cache_entry) {
             openfile_list_push(&openfile_list, f, cache_entry);
         } else {
@@ -177,7 +180,7 @@ cached_fopen(const char *filename, const char *modes) {
 }
 
 size_t
-cached_fread(void *ptr, size_t size, size_t n, FILE *stream) {
+cached_fread(void *ptr, size_t size, size_t n, CACHED_FILE *stream) {
     openfile_node_t *openfile = openfile_list_find(openfile_list, stream);
     if (!openfile) return -1;
     if (IS_CACHED_CONTENT(openfile->cache_entry->flags)) {
@@ -191,7 +194,8 @@ cached_fread(void *ptr, size_t size, size_t n, FILE *stream) {
         return ncopy;
     } else {
         /* Cache miss - stream is real - read off disk */
-        int r = fread(ptr, size, n, stream) * size;
+        if (!stream->actual_stream) return -1;
+        int r = fread(ptr, size, n, stream->actual_stream) * size;
         if (r > 0) {
             /* Read success - copy to cache */
             /* Alloc */
@@ -210,7 +214,7 @@ cached_fread(void *ptr, size_t size, size_t n, FILE *stream) {
             openfile->cache_entry->content_size += r;
 
             if (r != n * size)
-                if (feof(stream))
+                if (feof(stream->actual_stream))
                     SET_CACHED_CONTENT(openfile->cache_entry->flags);
         } 
         console_log(LOG_DBG, "\t", "fread cache miss ", NULL);
@@ -219,7 +223,8 @@ cached_fread(void *ptr, size_t size, size_t n, FILE *stream) {
 }
 
 int
-cached_fclose(FILE *stream) {
+cached_fclose(CACHED_FILE *stream) {
+    if (stream->actual_stream) fclose(stream->actual_stream);
     openfile_list_remove(&openfile_list, stream);
     console_log(LOG_DBG, "\t", "fclose ", NULL);
     return 0;
