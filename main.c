@@ -31,6 +31,7 @@
 #include "socket.h"
 #include "cache.h"
 
+/* Text file (no '\0's) */
 int
 file_read(const char *path, char **buff) {
     FILE *f = fopen(path, "r");
@@ -38,8 +39,9 @@ file_read(const char *path, char **buff) {
     fseek(f, 0L, SEEK_END);
     size_t s = ftell(f);
     fseek(f, 0L, SEEK_SET);
-    *buff = malloc(s);
+    *buff = malloc(s + 1);
     fread(*buff, 1, s, f);
+    (*buff)[s] = '\0';
     return s;
 }
 
@@ -58,6 +60,12 @@ main(int argc, char **argv) {
     config_parse(config);
 
     /* Print config */
+    string_node_t *listen_current = listen_list;
+    while (listen_current) {
+        printf("listen %s\n", listen_current->str);
+        listen_current = listen_current->next;
+    }
+
     location_node_t *location_current = location_list;
     while (location_current) {
         printf("location %s\n", location_current->location);

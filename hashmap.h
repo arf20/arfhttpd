@@ -30,8 +30,8 @@
 
 typedef struct nodedata_s {
     struct stat stat_data;
-    char *fbuff;
-    size_t buffsize;
+    char *content_buff;
+    size_t content_size;
     char flags;
 } htdata_t;
 

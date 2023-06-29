@@ -206,30 +206,32 @@ socket_listen_accept(struct addrinfo *ai, unsigned short port) {
     int lfd = socket_listen(ai, port);
     if (lfd < 0) return -1;
 
+    /* push element */
+    fd_thread_node_t* node = fd_thread_list_push(&listen_socket_list, lfd, 0);
+
     /* run accept thread */
     pthread_t accept_thread;
-    pthread_create(&accept_thread, NULL, accept_loop, &lfd);
+    pthread_create(&accept_thread, NULL, accept_loop, &node->fd);
 
-    /* push element */
-    fd_thread_list_push(&listen_socket_list, lfd, accept_thread);
+    node->thread = accept_thread;
 
     return lfd;
 }
 
 int
 server_start(string_node_t *listen_list) {
-    string_node_t *listen_list_current = listen_list;
+    string_node_t *listen_current = listen_list;
     char addrstr[128];
     char portstr[8];
     struct addrinfo *ai;
     int port = 0;
 
-    while (listen_list_current) {
-        char *colon = strchr(listen_list_current->str, '/');
+    while (listen_current) {
+        char *colon = strchr(listen_current->str, '/');
         if (colon) {
             /* get address */
-            strsub(addrstr, 128, listen_list_current->str,
-                colon - listen_list_current->str);
+            strsub(addrstr, 128, listen_current->str,
+                colon - listen_current->str);
             /* get port */
             strsub(portstr, 8, colon + 1, 8);
             port = atoi(portstr);
@@ -244,7 +246,7 @@ server_start(string_node_t *listen_list) {
             int lfd = socket_listen_accept(ai, port);
             printf("listening %s:%d %d\n", addrstr, port, lfd);
         } else { /* assume port */
-            port = atoi(listen_list_current->str);
+            port = atoi(listen_current->str);
 
             if (port == 0) printf("Error invalid port or wrong separator (/)\n");
 
@@ -255,6 +257,6 @@ server_start(string_node_t *listen_list) {
             printf("listening %s:%d %d\n", addrstr, port, lfd);
         }
 
-        listen_list_current = listen_list_current->next;
+        listen_current = listen_current->next;
     }
 }

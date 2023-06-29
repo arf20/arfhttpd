@@ -197,7 +197,7 @@ void
 sendfile(const client_t *cs, FILE *file, size_t size) {
     size_t nread = 0;
     while (size) {
-        nread = fread(sendbuff, 1, BUFF_SIZE, file);
+        nread = cached_fread(sendbuff, 1, BUFF_SIZE, file);
 
         if (send(cs->fd, sendbuff, nread, 0) < 0) {
             console_log(LOG_ERR, cs->addrstr, "Error sending: ",
@@ -424,7 +424,7 @@ http_process(const client_t *cs, const char *buff, size_t len) {
 
         if (sendisfile) {
             /* Open file */
-            FILE *file = fopen(path, "rb");
+            FILE *file = cached_fopen(path, "rb");
             if (file) {
                 strlcat(logbuff, " 200 OK", 1024);
                 if (mimeenabled) {
@@ -434,7 +434,7 @@ http_process(const client_t *cs, const char *buff, size_t len) {
                 }
                 send200(cs, headers);
                 sendfile(cs, file, statbuf.st_size);
-                fclose(file);
+                cached_fclose(file);
             } else {
                 console_log(LOG_ERR, cs->addrstr, "Error fopening: ",
                     strerror(errno));

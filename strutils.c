@@ -65,8 +65,10 @@ strsub(char *dest, size_t destsize, const char *src, size_t n) {
 char *
 stralloccpy(const char *start, size_t length) {
     if (!start) return NULL;
-    char *str = malloc(length);
+    char *str = malloc(length + 1);
     strncpy(str, start, length);
+    str[length] = '\0';
+    return str;
 }
 
 char *

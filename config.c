@@ -68,9 +68,10 @@ location_list_push(location_node_t **head, const char *loc, size_t len) {
         end = *head;
         while (end->next) end = end->next;
         end->next = new;
-        new->prev = *head;
+        new->prev = end;
     } else {
         *head = new;
+        new->prev = NULL;
     }
     new->next = NULL;
     new->location = stralloccpy(loc, len);
@@ -100,16 +101,19 @@ config_list_push(config_node_t **head, config_type_t type,
         end = *head;
         while (end->next) end = end->next;
         end->next = new;
-        new->prev = *head;
+        new->prev = end;
     } else {
         *head = new;
+        new->prev = NULL;
     }
     new->next = NULL;
     new->type = type;
     if (p1)
         new->param1 = stralloccpy(p1, strlen(p1));
+    else new->param1 = NULL;
     if (p2)
         new->param2 = stralloccpy(p2, strlen(p2));
+    else new->param2 = NULL;
     return new;
 }
 
@@ -245,7 +249,7 @@ config_parse(const char *config) {
         }
         
         else {
-            printf("Warning: Invalid config key, line %d\n", line);
+            printf("Warning: Invalid config key, line %d\n", line + 1);
         }
 
         ptr = value_end + 1;
