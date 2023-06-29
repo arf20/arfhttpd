@@ -95,17 +95,18 @@ new:
     goto lbl;
 }
 
-void
+hashtable_node_t *
 hashtable_ninsert(hashtable_t *ht, const char *key, 
                        int key_len, htdata_t value) {
     
     hashtable_node_t *n = hashtable_nfind(ht, key, key_len);
     n->data = value;
+    return n;
 }
 
-void
+hashtable_node_t *
 hashtable_insert(hashtable_t *ht, const char *key, htdata_t value) {
-    hashtable_ninsert(ht, key, strlen(key), value);
+    return hashtable_ninsert(ht, key, strlen(key), value);
 }
 
 htdata_t *

@@ -26,7 +26,7 @@
 #define IS_CACHED_STAT(x)       (x & 1)
 #define IS_CACHED_CONTENT(x)    ((x >> 1) & 1)
 #define SET_CACHED_STAT(x)      (x |= 1)
-#define SET_CACHED_CONTENT(x)   (x |= (1 << 1))
+#define SET_CACHED_CONTENT(x)   (x |= 1 << 1)
 
 typedef struct nodedata_s {
     struct stat stat_data;
@@ -48,5 +48,5 @@ typedef struct hashtable_s {
 } hashtable_t;
 
 void hashtable_new(hashtable_t *ht, int size);
-void hashtable_insert(hashtable_t *ht, const char *key, htdata_t value);
+hashtable_node_t *hashtable_insert(hashtable_t *ht, const char *key, htdata_t value);
 htdata_t *hashtable_get(hashtable_t *ht, const char *key);
