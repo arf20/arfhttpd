@@ -30,6 +30,7 @@
 #include "config.h"
 #include "socket.h"
 #include "cache.h"
+#include "log.h"
 
 /* Text file (no '\0's) */
 int
@@ -82,20 +83,24 @@ main(int argc, char **argv) {
         location_current = location_current->next;
     }
 
-    cache_init();
+    if (cache_init() < 0) {
+        exit(1);
+    }
 
     /* Start accept threads */
     server_start(listen_list);
 
+    console_log(LOG_INFO, "\t", "Server started", NULL);
+
     /* Join accept threads (wait for them to exit) */
     if (!listen_socket_list) {
-        printf("Nothing to accept\n");
+        console_log(LOG_ERR, "\t", "Nothing to accept", NULL);
         exit(1);
     }
     fd_thread_node_t *listen_socket_current = listen_socket_list;
     while (listen_socket_current) {
         if (pthread_join(listen_socket_current->thread, NULL) != 0) {
-            printf("Error joining accept thread\n");
+            console_log(LOG_ERR, "\t", "Error joining accept thread", NULL);
             exit(1);
         }
         listen_socket_current = listen_socket_current->next;

@@ -32,7 +32,7 @@ typedef struct CACHED_FILE_s {
     FILE *actual_stream;
 } CACHED_FILE;
 
-void cache_init();
+int cache_init();
 int cached_stat(const char *file, struct stat *buf);
 CACHED_FILE *cached_fopen(const char *filename, const char *modes);
 size_t cached_fread(void *ptr, size_t size, size_t n, CACHED_FILE *stream);

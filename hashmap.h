@@ -27,12 +27,15 @@
 #define IS_CACHED_CONTENT(x)    ((x >> 1) & 1)
 #define SET_CACHED_STAT(x)      (x |= 1)
 #define SET_CACHED_CONTENT(x)   (x |= 1 << 1)
+#define CLEAR_CACHED_STAT(x)    (x &= ~(1))
+#define CLEAR_CACHED_CONTENT(x) (x &= ~(1 << 1))
 
 typedef struct nodedata_s {
     struct stat stat_data;
     char *content_buff;
     size_t content_size;
     char flags;
+    int wfd; /* inotify watch fd */
 } htdata_t;
 
 typedef struct hashtable_node_s {

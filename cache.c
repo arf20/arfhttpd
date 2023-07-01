@@ -16,7 +16,7 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-    cache.c: file cache
+    cache.c: File cache
 
 */
 
@@ -26,6 +26,11 @@
 #include "log.h"
 
 #include <sys/stat.h>
+#include <sys/inotify.h>
+#include <poll.h>
+#include <errno.h>
+#include <unistd.h>
+#include <pthread.h>
 
 #include <limits.h>
 #include <string.h>
@@ -35,6 +40,8 @@
 static char resolved_path[PATH_MAX];
 
 static hashtable_t file_cache;
+
+static int infd = 0;
 
 /* Open file list */
 typedef struct openfile_node_s {
@@ -103,20 +110,48 @@ openfile_list_remove(openfile_node_t **head, const CACHED_FILE *stream) {
 }
 
 
+hashtable_node_t *
+hashtable_find_wfd(int wfd) {
+    hashtable_node_t *file_cache_current = file_cache.table;
+    while (file_cache_current) {
+        if (file_cache_current->data.wfd == wfd)
+            return file_cache_current;
+        file_cache_current = file_cache_current->next;
+    }
+    return NULL;
+}
+
+
 int
 min(int a, int b) {
     return a > b ? b : a;
 }
 
+void *inotify_poll_loop(void *ptr);
 
-void
+/* Exports */
+
+int
 cache_init() {
+    /* Allocate hash table */
     hashtable_new(&file_cache, CACHE_SIZE);
+    /* Initialise inotify API */
+    infd = inotify_init1(IN_NONBLOCK);
+    if (infd == -1) {
+        printf("Error initialising inotify_init1\n");
+    }
+    /* Begin inotify poller thread */
+    pthread_t inpoll_thread;
+    pthread_create(&inpoll_thread, NULL, inotify_poll_loop, NULL);
+    pthread_detach(inpoll_thread);
 }
 
 int
 cached_stat(const char *file, struct stat *buf) {
-    file = realpath(file, resolved_path);
+    file = realpath(file, resolved_path); /* Accesses disk, find alternative */
+    if (!file) {
+        return -1;
+    }
     htdata_t *cache_entry = hashtable_get(&file_cache, file);
     if (cache_entry && IS_CACHED_STAT(cache_entry->flags)) {
         /* Cache hit */
@@ -134,13 +169,18 @@ cached_stat(const char *file, struct stat *buf) {
                 SET_CACHED_STAT(cache_entry->flags);
             } else {
                 /* Insert hash table */
-                htdata_t new_entry;
-                new_entry.flags = 0;
-                new_entry.content_buff = NULL;
-                new_entry.content_size = 0;
-                new_entry.stat_data = *buf;
-                SET_CACHED_STAT(new_entry.flags);
-                hashtable_insert(&file_cache, file, new_entry);
+                htdata_t new_data;
+                new_data.flags = 0;
+                new_data.content_buff = NULL;
+                new_data.content_size = 0;
+                new_data.stat_data = *buf;
+                SET_CACHED_STAT(new_data.flags);
+                /* Add inotify watch */
+                new_data.wfd = inotify_add_watch(infd, file, IN_MODIFY);
+                if (new_data.wfd < 0)
+                    console_log(LOG_ERR, "\t", "Cannot watch ", file);
+                else console_log(LOG_DBG, "\t", "Watching ", file);
+                hashtable_insert(&file_cache, file, new_data);
             }
             console_log(LOG_DBG, "\t", "Cached stat for ", file);
         }
@@ -170,6 +210,11 @@ cached_fopen(const char *filename, const char *modes) {
         } else {
             /* Insert hash table */
             htdata_t new_data = { 0 };
+            /* Add inotify watch */
+            new_data.wfd = inotify_add_watch(infd, filename, IN_MODIFY);
+            if (new_data.wfd < 0)
+                console_log(LOG_ERR, "\t", "Cannot watch ", filename);
+            else console_log(LOG_DBG, "\t", "Watching ", filename);
             hashtable_node_t *new_node = 
                 hashtable_insert(&file_cache, filename, new_data);
             openfile_list_push(&openfile_list, f, &new_node->data);
@@ -229,3 +274,55 @@ cached_fclose(CACHED_FILE *stream) {
     console_log(LOG_DBG, "\t", "fclose ", NULL);
     return 0;
 }
+
+
+/* inotify invalidator */
+void *
+inotify_poll_loop(void *ptr) {
+    int poll_num = 0;
+    nfds_t nfds = 1;
+    struct pollfd fds;
+    fds.fd = infd;
+    fds.events = POLLIN;
+
+    char buf[4096]
+        __attribute__ ((aligned(__alignof__(struct inotify_event))));
+    const struct inotify_event *event;
+    size_t len;
+
+    while (1) {
+        poll_num = poll(&fds, nfds, -1);
+        if (poll_num == -1) {
+            if (errno == EINTR)
+                continue;
+            console_log(LOG_ERR, "\t", "Error polling inotify ", NULL);
+        }
+
+        if (fds.revents & POLLIN) {
+            /* inotify events are available. */
+            len = read(infd, buf, sizeof(buf));
+            if (len == -1 && errno != EAGAIN) {
+                console_log(LOG_ERR, "\t", "Error reading inotify ", NULL);
+            }
+
+            if (len <= 0)
+                break;
+            
+            for (char *ptr = buf; ptr < buf + len;
+                ptr += sizeof(struct inotify_event) + event->len)
+            {
+                event = (const struct inotify_event *) ptr;
+                /* Find corresponding cache entry */
+                hashtable_node_t *entry = hashtable_find_wfd(event->wd);
+                if (entry) {
+                    /* Assuming IN_MODIFIED, clear cached flags */
+                    CLEAR_CACHED_STAT(entry->data.flags);
+                    CLEAR_CACHED_CONTENT(entry->data.flags);
+                    console_log(LOG_DBG, "\t", "Cache invalidated for ",
+                        entry->key);
+                }
+            }
+        }
+    }
+}
+
