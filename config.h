@@ -71,11 +71,6 @@ typedef struct location_node_s {
 extern string_node_t *listen_list;
 extern location_node_t *location_list;
 
-string_node_t *string_list_new(string_node_t *prev);
-fd_thread_node_t *fd_thread_list_new(fd_thread_node_t *prev);
-location_node_t *location_list_new(location_node_t *prev);
-config_node_t *config_list_new(config_node_t *prev);
-
 int config_parse(const char *config);
 
 #endif

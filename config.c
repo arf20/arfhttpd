@@ -198,14 +198,14 @@ config_parse(const char *config) {
         if (substrchk(key, "listen ")) { /* address/port */
             if (argc != 1) {
                 printf("Error: Wrong amount of arguments, line %d\n", line);
-                continue;
+                goto next;
             }
             string_list_push(&listen_list, value, value_length);
         }
         else if (substrchk(key, "location ")) {
             if (argc != 1) {
                 printf("Error: Wrong amount of arguments, line %d\n", line);
-                continue;
+                goto next;
             }
 
             if (location_list_find(location_list, p1)) {
@@ -219,14 +219,14 @@ config_parse(const char *config) {
         else if (substrchk(key, "webroot ")) { /* Root of location in fs */
             if (argc != 1) {
                 printf("Error: Wrong amount of arguments, line %d\n", line);
-                continue;
+                goto next;
             }
             config_list_push(&location_current->config, CONFIG_ROOT, p1, NULL);
         }
         else if (substrchk(key, "index ")) { /* Default index file */
             if (argc != 1) {
                 printf("Error: Wrong amount of arguments, line %d\n", line);
-                continue;
+                goto next;
             }
             config_list_push(&location_current->config, CONFIG_INDEX, p1, NULL);
         }
@@ -241,7 +241,7 @@ config_parse(const char *config) {
         else if (substrchk(key, "header ")) { /* Header and value */
             if (argc != 2) {
                 printf("Error: Wrong amount of arguments, line %d\n", line);
-                continue;
+                goto next;
             }
             
             config_list_push(&location_current->config, CONFIG_HEADER,
@@ -252,6 +252,7 @@ config_parse(const char *config) {
             printf("Warning: Invalid config key, line %d\n", line + 1);
         }
 
+    next:
         ptr = value_end + 1;
         line++;
     }

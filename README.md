@@ -2,7 +2,7 @@
 Yet another HTTP server
 
 ## Compilation
-Dependencies: just libmagic
+Dependencies: libmagic, libtls-dev
 ```
 mkdir build && cd build
 cmake ..
