@@ -111,12 +111,18 @@ openfile_list_remove(openfile_node_t **head, const CACHED_FILE *stream) {
 
 
 hashtable_node_t *
-hashtable_find_wfd(int wfd) {
-    hashtable_node_t *file_cache_current = file_cache.table;
-    while (file_cache_current) {
-        if (file_cache_current->data.wfd == wfd)
-            return file_cache_current;
-        file_cache_current = file_cache_current->next;
+hashtable_find_wd(int wd) {
+    /* @lenny this uhh how are you supposed to fuckin iterate through your
+       hash table already */
+    hashtable_node_t *file_cache_current = NULL;
+    for (int i = 0; i < file_cache.size; i++) {
+        file_cache_current = file_cache.table + i;
+        if (!file_cache_current->key) continue;
+        while (file_cache_current) {
+            if (file_cache_current->data.wd == wd)
+                return file_cache_current;
+            file_cache_current = file_cache_current->next;
+        }
     }
     return NULL;
 }
@@ -176,8 +182,8 @@ cached_stat(const char *file, struct stat *buf) {
                 new_data.stat_data = *buf;
                 SET_CACHED_STAT(new_data.flags);
                 /* Add inotify watch */
-                new_data.wfd = inotify_add_watch(infd, file, IN_MODIFY);
-                if (new_data.wfd < 0)
+                new_data.wd = inotify_add_watch(infd, file, IN_MODIFY);
+                if (new_data.wd < 0)
                     console_log(LOG_ERR, "\t", "Cannot watch ", file);
                 else console_log(LOG_DBG, "\t", "Watching ", file);
                 hashtable_insert(&file_cache, file, new_data);
@@ -211,8 +217,8 @@ cached_fopen(const char *filename, const char *modes) {
             /* Insert hash table */
             htdata_t new_data = { 0 };
             /* Add inotify watch */
-            new_data.wfd = inotify_add_watch(infd, filename, IN_MODIFY);
-            if (new_data.wfd < 0)
+            new_data.wd = inotify_add_watch(infd, filename, IN_MODIFY);
+            if (new_data.wd < 0)
                 console_log(LOG_ERR, "\t", "Cannot watch ", filename);
             else console_log(LOG_DBG, "\t", "Watching ", filename);
             hashtable_node_t *new_node = 
@@ -306,20 +312,26 @@ inotify_poll_loop(void *ptr) {
             }
 
             if (len <= 0)
-                break;
+                continue;
             
             for (char *ptr = buf; ptr < buf + len;
                 ptr += sizeof(struct inotify_event) + event->len)
             {
                 event = (const struct inotify_event *) ptr;
                 /* Find corresponding cache entry */
-                hashtable_node_t *entry = hashtable_find_wfd(event->wd);
+                hashtable_node_t *entry = hashtable_find_wd(event->wd);
                 if (entry) {
                     /* Assuming IN_MODIFIED, clear cached flags */
                     CLEAR_CACHED_STAT(entry->data.flags);
                     CLEAR_CACHED_CONTENT(entry->data.flags);
-                    console_log(LOG_DBG, "\t", "Cache invalidated for ",
-                        entry->key);
+                    free(entry->data.content_buff);
+                    entry->data.content_buff = NULL;
+                    entry->data.content_size = 0;
+
+                    char key[256];
+                    strncpy(key, entry->key, entry->key_len);
+                    key[entry->key_len] = '\0';
+                    console_log(LOG_DBG, "\t", "Cache invalidated for ", key);
                 }
             }
         }

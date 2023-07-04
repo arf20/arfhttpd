@@ -35,7 +35,7 @@ typedef struct nodedata_s {
     char *content_buff;
     size_t content_size;
     char flags;
-    int wfd; /* inotify watch fd */
+    int wd; /* inotify watch fd */
 } htdata_t;
 
 typedef struct hashtable_node_s {
