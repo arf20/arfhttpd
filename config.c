@@ -37,7 +37,7 @@ const char *config_type_strs[] = {
 };
 
 /* Config */
-string_node_t *listen_list = NULL;
+string_node_t *listen_list = NULL, *tls_listen_list = NULL;
 location_node_t *location_list = NULL, *location_current = NULL;
 
 
@@ -155,7 +155,7 @@ config_parse(const char *config) {
 
     int line = 0;
     const char *ptr = config, *key, *value, *value_end;
-    size_t value_length;
+    size_t value_length, p1len, p2len;
     char p1[1024];
     char p2[1024];
     int argc = 0;
@@ -179,16 +179,17 @@ config_parse(const char *config) {
             argc++;
             const char* separator = strnchr(value, value_length, ' ');
             if (separator) {
-                size_t p1len = separator - value;
+                p1len = separator - value;
                 strncpy(p1, value, p1len);
                 p1[p1len] = '\0';
-                size_t p2len = value_end - (separator + 1);
+                p2len = value_end - (separator + 1);
                 strncpy(p2, separator + 1, p2len);
                 p2[p2len] = '\0';
                 argc++;
             } else {
                 strncpy(p1, value, value_length);
                 p1[value_length] = '\0';
+                p1len = value_length;
             }
         }
 
@@ -196,11 +197,15 @@ config_parse(const char *config) {
         /* Valid keys */
         /* Context-less */
         if (substrchk(key, "listen ")) { /* address/port */
-            if (argc != 1) {
+            if (argc != 1 && argc != 2) {
                 printf("Error: Wrong amount of arguments, line %d\n", line);
                 goto next;
             }
-            string_list_push(&listen_list, value, value_length);
+            if (argc == 2 && p2) {
+                string_list_push(&tls_listen_list, p1, p1len);
+            } else {
+                string_list_push(&listen_list, p1, p1len);
+            }
         }
         else if (substrchk(key, "location ")) {
             if (argc != 1) {
@@ -212,7 +217,7 @@ config_parse(const char *config) {
                 printf("Warning: Duplicated location, line %d\n", line);
             } else {
                 location_current = location_list_push(&location_list,
-                    p1, strlen(p1));
+                    p1, p1len);
             }
         }
         /* Location context */

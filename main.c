@@ -29,6 +29,7 @@
 
 #include "config.h"
 #include "socket.h"
+#include "tls_socket.h"
 #include "cache.h"
 #include "log.h"
 
@@ -67,6 +68,12 @@ main(int argc, char **argv) {
         listen_current = listen_current->next;
     }
 
+    listen_current = tls_listen_list;
+    while (listen_current) {
+        printf("listen %s tls\n", listen_current->str);
+        listen_current = listen_current->next;
+    }
+
     location_node_t *location_current = location_list;
     while (location_current) {
         printf("location %s\n", location_current->location);
@@ -89,6 +96,7 @@ main(int argc, char **argv) {
 
     /* Start accept threads */
     server_start(listen_list);
+    tls_server_start(tls_listen_list);
 
     console_log(LOG_INFO, "\t", "Server started", NULL);
 
@@ -106,7 +114,18 @@ main(int argc, char **argv) {
         listen_socket_current = listen_socket_current->next;
     }
 
-
+    if (!tls_listen_socket_list) {
+        console_log(LOG_ERR, "\t", "Nothing to accept", NULL);
+        exit(1);
+    }
+    listen_socket_current = tls_listen_socket_list;
+    while (listen_socket_current) {
+        if (pthread_join(listen_socket_current->thread, NULL) != 0) {
+            console_log(LOG_ERR, "\t", "Error joining accept thread", NULL);
+            exit(1);
+        }
+        listen_socket_current = listen_socket_current->next;
+    }
 
 
     return 0;

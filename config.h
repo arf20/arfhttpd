@@ -68,7 +68,7 @@ typedef struct location_node_s {
 } location_node_t;
 
 /* Config */
-extern string_node_t *listen_list;
+extern string_node_t *listen_list, *tls_listen_list;
 extern location_node_t *location_list;
 
 int config_parse(const char *config);
