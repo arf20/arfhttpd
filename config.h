@@ -70,6 +70,7 @@ typedef struct location_node_s {
 /* Config */
 extern string_node_t *listen_list, *tls_listen_list;
 extern location_node_t *location_list;
+extern const char *cert_file, *cert_key_file;
 
 int config_parse(const char *config);
 

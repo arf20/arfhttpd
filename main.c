@@ -74,6 +74,12 @@ main(int argc, char **argv) {
         listen_current = listen_current->next;
     }
 
+    if (cert_file)
+        printf("certificate %s\n", cert_file);
+
+    if (cert_key_file)
+        printf("certificate_key %s\n", cert_key_file);
+
     location_node_t *location_current = location_list;
     while (location_current) {
         printf("location %s\n", location_current->location);
@@ -96,7 +102,7 @@ main(int argc, char **argv) {
 
     /* Start accept threads */
     server_start(listen_list);
-    tls_server_start(tls_listen_list);
+    tls_server_start(tls_listen_list, cert_file, cert_key_file);
 
     console_log(LOG_INFO, "\t", "Server started", NULL);
 

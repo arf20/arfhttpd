@@ -20,4 +20,4 @@ file (GLOB SRC
 
 add_executable(arfhttpd ${SRC})
 
-target_link_libraries(arfhttpd Threads::Threads magic)
+target_link_libraries(arfhttpd Threads::Threads magic tls)

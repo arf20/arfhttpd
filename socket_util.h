@@ -21,6 +21,8 @@
 #ifndef _SOCKET_UTIL_H
 #define _SOCKET_UTIL_H
 
+#include <netdb.h>
+
 #include "config.h"
 
 fd_thread_node_t *fd_thread_list_push(fd_thread_node_t **head, int fd, pthread_t thread);

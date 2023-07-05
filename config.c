@@ -40,6 +40,8 @@ const char *config_type_strs[] = {
 string_node_t *listen_list = NULL, *tls_listen_list = NULL;
 location_node_t *location_list = NULL, *location_current = NULL;
 
+const char *cert_file = NULL, *cert_key_file = NULL;
+
 
 string_node_t *
 string_list_push(string_node_t **head, const char *str, size_t len) {
@@ -201,11 +203,33 @@ config_parse(const char *config) {
                 printf("Error: Wrong amount of arguments, line %d\n", line);
                 goto next;
             }
-            if (argc == 2 && p2) {
+            if (argc == 2 && p2 && strncmp(p2, "tls", 3) == 0) {
                 string_list_push(&tls_listen_list, p1, p1len);
             } else {
                 string_list_push(&listen_list, p1, p1len);
             }
+        }
+        else if (substrchk(key, "certificate ")) { /* address/port */
+            if (argc != 1) {
+                printf("Error: Wrong amount of arguments, line %d\n", line);
+                goto next;
+            }
+            if (cert_file) {
+                printf("Error: duplicated certificate_key, line %d\n", line);
+                goto next;
+            }
+            cert_file = stralloccpy(p1, p1len);
+        }
+        else if (substrchk(key, "certificate_key ")) { /* address/port */
+            if (argc != 1) {
+                printf("Error: Wrong amount of arguments, line %d\n", line);
+                goto next;
+            }
+            if (cert_key_file) {
+                printf("Error: duplicated certificate_key, line %d\n", line);
+                goto next;
+            }
+            cert_key_file = stralloccpy(p1, p1len);
         }
         else if (substrchk(key, "location ")) {
             if (argc != 1) {

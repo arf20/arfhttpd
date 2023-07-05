@@ -25,6 +25,7 @@
 
 extern fd_thread_node_t *tls_listen_socket_list;
 
-int tls_server_start(string_node_t *tls_listen_list);
+int tls_server_start(string_node_t *tls_listen_list, const char *cert_file,
+    const char *cert_key_file);
 
 #endif
