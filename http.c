@@ -29,6 +29,8 @@
 #include <netdb.h>
 #include <netinet/tcp.h>
 
+#include <tls.h>
+
 #include <linux/limits.h>
 #include <sys/stat.h>
 #include <dirent.h>
@@ -154,13 +156,32 @@ get_mime_type(const char *path) {
     return mimestr;
 }
 
+int
+cs_send(const client_t *cs, const void *buf, size_t n, int flags) {
+    if (cs->ctx) {
+        return tls_write(cs->ctx, buf, n);
+    } else {
+        return send(cs->fd, buf, n, flags);
+    }
+}
+
+int
+cs_close(const client_t *cs) {
+    if (cs->ctx) {
+        return tls_close(cs->ctx);
+    } else {
+        return close(cs->fd);
+    }
+}
+
+
 
 /* Status */
 void
 send404(const client_t *cs) {
     snprintf(sendbuff, BUFF_SIZE, "HTTP/1.1 404 Not Found\n\n");
     convertcrlf(sendbuff, BUFF_SIZE);
-    if (send(cs->fd, sendbuff, strlen(sendbuff), 0) < 0) {
+    if (cs_send(cs, sendbuff, strlen(sendbuff), 0) < 0) {
         console_log(LOG_ERR, cs->addrstr, "Error sending: ", strerror(errno));
     }
 }
@@ -169,7 +190,7 @@ void
 send403(const client_t *cs) {
     snprintf(sendbuff, BUFF_SIZE, "HTTP/1.1 403 Forbidden\n\n");
     convertcrlf(sendbuff, BUFF_SIZE);
-    if (send(cs->fd, sendbuff, strlen(sendbuff), 0) < 0) {
+    if (cs_send(cs, sendbuff, strlen(sendbuff), 0) < 0) {
         console_log(LOG_ERR, cs->addrstr, "Error sending: ", strerror(errno));
     }
 }
@@ -178,7 +199,7 @@ void
 send501(const client_t *cs) {
     snprintf(sendbuff, BUFF_SIZE, "HTTP/1.1 501 Not Implemented\n\n");
     convertcrlf(sendbuff, BUFF_SIZE);
-    if (send(cs->fd, sendbuff, strlen(sendbuff), 0) < 0) {
+    if (cs_send(cs, sendbuff, strlen(sendbuff), 0) < 0) {
         console_log(LOG_ERR, cs->addrstr, "Error sending: ", strerror(errno));
     }
 }
@@ -187,7 +208,7 @@ void
 send503(const client_t *cs) {
     snprintf(sendbuff, BUFF_SIZE, "HTTP/1.1 503 Service Unavailable\n\n");
     convertcrlf(sendbuff, BUFF_SIZE);
-    if (send(cs->fd, sendbuff, strlen(sendbuff), 0) < 0) {
+    if (cs_send(cs, sendbuff, strlen(sendbuff), 0) < 0) {
         console_log(LOG_ERR, cs->addrstr, "Error sending: ", strerror(errno));
     }
 }
@@ -199,7 +220,7 @@ send200(const client_t *cs, const char *headers) {
         strlcat(sendbuff, headers, BUFF_SIZE);
     strlcat(sendbuff, "\n", BUFF_SIZE);
     convertcrlf(sendbuff, BUFF_SIZE);
-    if (send(cs->fd, sendbuff, strlen(sendbuff), 0) < 0) {
+    if (cs_send(cs, sendbuff, strlen(sendbuff), 0) < 0) {
         console_log(LOG_ERR, cs->addrstr, "Error sending: ", strerror(errno));
     }
 }
@@ -210,7 +231,7 @@ sendfile(const client_t *cs, CACHED_FILE *file, size_t size) {
     while (size) {
         nread = cached_fread(sendbuff, 1, BUFF_SIZE, file);
 
-        if (send(cs->fd, sendbuff, nread, 0) < 0) {
+        if (cs_send(cs, sendbuff, nread, 0) < 0) {
             console_log(LOG_ERR, cs->addrstr, "Error sending: ",
                 strerror(errno));
         }
@@ -267,7 +288,7 @@ sendautoindex(const client_t *cs, DIR *dir, const char *path,
     }
     strlcat(sendbuff, AUTOINDEX_OUTRO, BUFF_SIZE);
 
-    if (send(cs->fd, sendbuff, strlen(sendbuff), 0) < 0) {
+    if (cs_send(cs, sendbuff, strlen(sendbuff), 0) < 0) {
         console_log(LOG_ERR, cs->addrstr, "Error sending: ",
             strerror(errno));
     }
@@ -479,7 +500,7 @@ http_process(const client_t *cs, const char *buff, size_t len) {
     }
 
     doclose:
-    close(cs->fd);
+    cs_close(cs);
 
     console_log(LOG_INFO, cs->addrstr, logbuff, NULL);
 }

@@ -122,6 +122,7 @@ accept_loop(void *ptr) {
         client_t *cs = malloc(sizeof(client_t));
         cs->addrstr = addrstr;
         cs->fd = cfd;
+        cs->ctx = NULL;
 
         sa_addr_str(&sa, addrstr, 128);
         console_log(LOG_DBG, addrstr, "Accepted client", NULL);

@@ -21,10 +21,13 @@
 #ifndef _HTTP_H
 #define _HTTP_H
 
+#include <tls.h>
+
 /* Structs */
 typedef struct {
     int fd;
-    const char *addrstr;
+    struct tls *ctx;
+    char *addrstr;
 } client_t;
 
 void http_process(const client_t *cs, const char *buff, size_t len);
