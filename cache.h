@@ -27,15 +27,13 @@
 #define CACHE_SIZE  65536
 
 /* Our own FILE type */
-typedef struct CACHED_FILE_s {
-    size_t _offset;
-    FILE *actual_stream;
+typedef struct {
+    size_t size;
+    char *buff;
 } CACHED_FILE;
 
 int cache_init();
 int cached_stat(const char *file, struct stat *buf);
-CACHED_FILE *cached_fopen(const char *filename, const char *modes);
-size_t cached_fread(void *ptr, size_t size, size_t n, CACHED_FILE *stream);
-int cached_fclose(CACHED_FILE *stream);
+const char *cached_open(const char *filename, size_t *size);
 
 #endif

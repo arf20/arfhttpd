@@ -226,21 +226,6 @@ send200(const client_t *cs, const char *headers) {
 }
 
 void
-sendfile(const client_t *cs, CACHED_FILE *file, size_t size) {
-    size_t nread = 0;
-    while (size) {
-        nread = cached_fread(sendbuff, 1, BUFF_SIZE, file);
-
-        if (cs_send(cs, sendbuff, nread, 0) < 0) {
-            console_log(LOG_ERR, cs->addrstr, "Error sending: ",
-                strerror(errno));
-        }
-
-        size -= nread;
-    }
-}
-
-void
 sendautoindex(const client_t *cs, DIR *dir, const char *path,
     const char *endpoint)
 {
@@ -456,8 +441,9 @@ http_process(const client_t *cs, const char *buff, size_t len) {
 
         if (sendisfile) {
             /* Open file */
-            CACHED_FILE *file = cached_fopen(path, "rb");
-            if (file) {
+            size_t size = 0;
+            const char *ptr = cached_open(path, &size);
+            if (ptr) {
                 strlcat(logbuff, " 200 OK", 1024);
                 if (mimeenabled) {
                     strlcat(headers, "Content-Type: ", 65535);
@@ -465,8 +451,7 @@ http_process(const client_t *cs, const char *buff, size_t len) {
                     strlcat(headers, "\n", 65535);
                 }
                 send200(cs, headers);
-                sendfile(cs, file, statbuf.st_size);
-                cached_fclose(file);
+                cs_send(cs, ptr, size, 0);
             } else {
                 console_log(LOG_ERR, cs->addrstr, "Error fopening: ",
                     strerror(errno));

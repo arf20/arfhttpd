@@ -30,6 +30,9 @@
 #include <poll.h>
 #include <errno.h>
 #include <unistd.h>
+#include <fcntl.h>
+#include <stdio.h>
+#include <sys/mman.h>
 #include <pthread.h>
 
 #include <limits.h>
@@ -42,72 +45,6 @@ static char resolved_path[PATH_MAX];
 static hashtable_t file_cache;
 
 static int infd = 0;
-
-/* Open file list */
-typedef struct openfile_node_s {
-    CACHED_FILE *stream;
-    htdata_t *cache_entry;
-    struct openfile_node_s *prev;
-    struct openfile_node_s *next;
-} openfile_node_t;
-
-static openfile_node_t *openfile_list = NULL;
-
-openfile_node_t *
-openfile_list_push(openfile_node_t **head, CACHED_FILE *stream, htdata_t *cache_entry) {
-    if (!head) return NULL;
-    openfile_node_t *end = NULL;
-    openfile_node_t *new = malloc(sizeof(openfile_node_t));
-    if (*head) {
-        end = *head;
-        while (end->next) end = end->next;
-        end->next = new;
-        new->prev = end;
-    } else {
-        *head = new;
-        new->prev = NULL;
-    }
-    new->next = NULL;
-    new->stream = stream;
-    new->cache_entry = cache_entry;
-    return new;
-}
-
-openfile_node_t *
-openfile_list_find(openfile_node_t *head, const CACHED_FILE *stream) {
-    if (!head) return NULL;
-    openfile_node_t *ptr = head;
-    while (ptr) {
-        if (ptr->stream == stream) return ptr;
-        ptr = ptr->next;
-    }
-    return NULL;
-}
-
-void
-openfile_list_remove(openfile_node_t **head, const CACHED_FILE *stream) {
-    if (!head) return;
-    openfile_node_t *elem = openfile_list_find(*head, stream);
-    
-    if (*head == elem)
-        *head = elem->next;
-
-    if (!elem->prev)
-        if (elem->next)
-            elem->next->prev == NULL;
-
-    if (!elem->next)
-        if (elem->next)
-            elem->next->prev == NULL;
-
-    if (elem->next && elem->prev) {
-        elem->prev->next = elem->next;
-        elem->next->prev = elem->prev;
-    }
-    
-    free(elem->stream);
-    free(elem);
-}
 
 
 hashtable_node_t *
@@ -194,93 +131,61 @@ cached_stat(const char *file, struct stat *buf) {
     }
 }
 
-CACHED_FILE *
-cached_fopen(const char *filename, const char *modes) {
-    if (!filename || !modes) return NULL;
+const char *
+cached_open(const char *filename, size_t *size) {
+    if (!filename) return NULL;
     htdata_t *cache_entry = hashtable_get(&file_cache, filename);
     if (cache_entry && IS_CACHED_CONTENT(cache_entry->flags)) {
-        /* Cache hit - create our own virtual FILE stream */
-        CACHED_FILE *f = malloc(sizeof(CACHED_FILE));
-        f->actual_stream = NULL;
-        f->_offset = 0;
-        openfile_list_push(&openfile_list, f, cache_entry);
-        /*console_log(LOG_DBG, "\t", "fopen cache hit ", filename);*/
-        return f;
+        /* Cache hit */
+        console_log(LOG_DBG, "\t", "Content cache hit ", filename);
+        *size = cache_entry->content_size;
+        return cache_entry->content_buff;
     } else {
-        /* Cache miss - passthrough */
-        CACHED_FILE *f = malloc(sizeof(CACHED_FILE));
-        f->_offset = 0;
-        f->actual_stream = fopen(filename, modes);
+        /* Cache miss - mmap file */
+        struct stat sb;
+        int fd = open(filename, O_RDONLY);
+        if (fd < 0)
+            return NULL;
+
+        if (cache_entry && IS_CACHED_STAT(cache_entry->flags))
+            sb = cache_entry->stat_data;
+        else
+            cached_stat(filename, &sb);
+
+        /* cached_stat creates entry, get it */
+        cache_entry = hashtable_get(&file_cache, filename);
+
+        size_t _size = sb.st_size;
+
+        char *ptr = mmap(NULL, _size, PROT_READ,
+            MAP_PRIVATE, fd, 0);
+
+        close(fd);
+
+        /* it should by all means exist but just in case */
         if (cache_entry) {
-            openfile_list_push(&openfile_list, f, cache_entry);
+            cache_entry->content_buff = ptr;
+            cache_entry->content_size = _size;
+            SET_CACHED_CONTENT(cache_entry->flags);
         } else {
             /* Insert hash table */
-            htdata_t new_data = { 0 };
+            htdata_t new_cache_entry = { 0 };
+            new_cache_entry.content_buff = ptr;
+            new_cache_entry.content_size = _size;
             /* Add inotify watch */
-            new_data.wd = inotify_add_watch(infd, filename, IN_MODIFY);
-            if (new_data.wd < 0)
+            new_cache_entry.wd = inotify_add_watch(infd, filename, IN_MODIFY);
+            if (new_cache_entry.wd < 0)
                 console_log(LOG_ERR, "\t", "Cannot watch ", filename);
             else console_log(LOG_DBG, "\t", "Watching ", filename);
             hashtable_node_t *new_node = 
-                hashtable_insert(&file_cache, filename, new_data);
-            openfile_list_push(&openfile_list, f, &new_node->data);
+                hashtable_insert(&file_cache, filename, new_cache_entry);
+            SET_CACHED_CONTENT(cache_entry->flags);
         }
-        /*console_log(LOG_DBG, "\t", "fopen cache miss ", filename);*/
-        return f;
+        console_log(LOG_DBG, "\t", "Content cache miss ", filename);
+        *size = _size;
+        return cache_entry->content_buff;
     }
 }
-
-size_t
-cached_fread(void *ptr, size_t size, size_t n, CACHED_FILE *stream) {
-    openfile_node_t *openfile = openfile_list_find(openfile_list, stream);
-    if (!openfile) return -1;
-    if (IS_CACHED_CONTENT(openfile->cache_entry->flags)) {
-        /* Cache hit - stream is virtual - copy off cache */
-        size_t ncopy = min(size * n,
-            openfile->cache_entry->content_size - stream->_offset);
-        memcpy(ptr, openfile->cache_entry->content_buff + stream->_offset,
-            ncopy);
-        stream->_offset += ncopy;
-        /*console_log(LOG_DBG, "\t", "fread cache hit ", NULL);*/
-        return ncopy;
-    } else {
-        /* Cache miss - stream is real - read off disk */
-        if (!stream->actual_stream) return -1;
-        int r = fread(ptr, size, n, stream->actual_stream) * size;
-        if (r > 0) {
-            /* Read success - copy to cache */
-            /* Alloc */
-            if (!openfile->cache_entry->content_buff) {
-                /* Nothing there - new malloc */
-                openfile->cache_entry->content_buff = malloc(r);
-            } else {
-                /* Otherwise realloc */
-                openfile->cache_entry->content_buff =
-                    realloc(openfile->cache_entry->content_buff,
-                        openfile->cache_entry->content_size);
-            }
-            memcpy(openfile->cache_entry->content_buff + 
-                openfile->cache_entry->content_size, ptr, r);
-
-            openfile->cache_entry->content_size += r;
-
-            if (r != n * size)
-                if (feof(stream->actual_stream))
-                    SET_CACHED_CONTENT(openfile->cache_entry->flags);
-        } 
-        /*console_log(LOG_DBG, "\t", "fread cache miss ", NULL);*/
-        return r;
-    }
-}
-
-int
-cached_fclose(CACHED_FILE *stream) {
-    if (stream->actual_stream) fclose(stream->actual_stream);
-    openfile_list_remove(&openfile_list, stream);
-    /*console_log(LOG_DBG, "\t", "fclose ", NULL);*/
-    return 0;
-}
-
 
 /* inotify invalidator */
 void *
@@ -324,7 +229,7 @@ inotify_poll_loop(void *ptr) {
                     /* Assuming IN_MODIFIED, clear cached flags */
                     CLEAR_CACHED_STAT(entry->data.flags);
                     CLEAR_CACHED_CONTENT(entry->data.flags);
-                    free(entry->data.content_buff);
+                    munmap(entry->data.content_buff, entry->data.content_size);
                     entry->data.content_buff = NULL;
                     entry->data.content_size = 0;
 
